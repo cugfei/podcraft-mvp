@@ -2,16 +2,30 @@
 
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Union
+import hashlib
 
 import jwt as jwt_lib
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from passlib.context import CryptContext
+from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.database import get_session
+from app.models.user import User
 
 settings = get_settings()
 
-# Password hashing context — uses bcrypt behind the scenes
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password hashing context — use pbkdf2_sha256 (no 72-byte limit)
+pwd_context = CryptContext(
+    schemes=["pbkdf2_sha256"],
+    deprecated="auto",
+)
+
+# JWT
+ALGORITHM = "HS256"
+oauth2_scheme = HTTPBearer()
+
 
 # ---------------------------------------------------------------------------
 # Password helpers
@@ -31,8 +45,6 @@ def get_password_hash(password: str) -> str:
 # ---------------------------------------------------------------------------
 # JWT helpers
 # ---------------------------------------------------------------------------
-
-ALGORITHM = "HS256"
 
 
 def create_access_token(
@@ -57,3 +69,58 @@ def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
         return payload
     except (jwt_lib.InvalidTokenError, jwt_lib.ExpiredSignatureError):
         return None
+
+
+# ---------------------------------------------------------------------------
+# Current-user dependency (used by protected routes)
+# ---------------------------------------------------------------------------
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(oauth2_scheme),
+    db: Session = Depends(get_session),
+) -> User:
+    """Validate the Bearer token and return the owning User object.
+
+    Raises 401 if the token is missing, invalid, expired, or the user no
+    longer exists / is inactive.
+    """
+    token = credentials.credentials
+    payload = decode_access_token(token)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id: str = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if getattr(user, "is_active", True) is False:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Inactive user",
+        )
+
+    return user
+
+
+def get_current_active_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Convenience wrapper that guarantees an active user."""
+    return current_user

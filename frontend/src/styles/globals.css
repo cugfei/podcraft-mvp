@@ -2,20 +2,211 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ========== Design Tokens (from prototype) ========== */
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 255, 255, 255;
-  --background-end-rgb: 255, 255, 255;
+  --bg: #ffffff;
+  --bg-soft: #f7f7f9;
+  --bg-muted: #f3f4f6;
+  --panel: #ffffff;
+  --panel-2: #fafafa;
+  --line: #e5e7eb;
+  --line-light: #f3f4f6;
+  --text: #0b0b0d;
+  --text-muted: #6b7280;
+  --text-light: #9ca3af;
+  --brand: #0b0b0d;
+  --brand-2: #1f2937;
+  --brand-3: #4b5563;
+  --success: #10b981;
+  --success-light: #d1fae5;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.12);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+    'Segoe UI', Roboto, sans-serif;
+}
+
+/* ========== Global Reset & Typography ========== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  transition-property: background-color, border-color, box-shadow, transform, opacity;
+  transition-duration: 0.2s;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-sans);
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.6;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* ========== Animations (from prototype) ========== */
+@keyframes textReveal {
+  from {
+    opacity: 0;
+    filter: blur(10px);
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+/* ========== Prototype Button Styles ========== */
+.proto-btn {
+  font-family: inherit;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  border-radius: 10px;
+  padding: 14px 28px;
+  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+
+.proto-btn-primary {
+  background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(11, 11, 13, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.proto-btn-primary::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+  transition: left 0.5s ease;
+}
+
+.proto-btn-primary:hover::before {
+  left: 100%;
+}
+
+.proto-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(11, 11, 13, 0.25);
+}
+
+.proto-btn-outline {
+  background: transparent;
+  color: var(--text);
+  border: 1.5px solid var(--line);
+}
+
+.proto-btn-outline:hover {
+  border-color: var(--brand);
+  background: rgba(11, 11, 13, 0.02);
+}
+
+/* ========== Prototype Card Hover ========== */
+.proto-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 32px 24px;
+  box-shadow: var(--shadow);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.proto-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+  border-color: var(--brand-3);
+}
+
+/* ========== Pricing Featured Card ========== */
+.proto-pricing-featured {
+  border-color: var(--brand) !important;
+  box-shadow: 0 8px 24px rgba(11, 11, 13, 0.15) !important;
+  transform: scale(1.05);
+}
+
+@media (max-width: 768px) {
+  .proto-pricing-featured {
+    transform: none;
+  }
+}
+
+/* ========== Scrollbar Styling ========== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-light);
 }

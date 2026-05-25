@@ -1,36 +1,33 @@
 import * as React from "react";
 import Link from "next/link";
+import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
 
 export default function Footer() {
   return (
-    <footer className="border-t border-gray-200 bg-gray-50">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-          <p className="text-sm text-gray-500">
-            &copy; {new Date().getFullYear()} PodCraft. All rights reserved.
-          </p>
-          <div className="flex gap-6">
-            <Link
-              href="#"
-              className="text-sm text-gray-500 hover:text-gray-700"
-            >
-              隐私政策
-            </Link>
-            <Link
-              href="#"
-              className="text-sm text-gray-500 hover:text-gray-700"
-            >
-              服务条款
-            </Link>
-            <Link
-              href="#"
-              className="text-sm text-gray-500 hover:text-gray-700"
-            >
-              联系我们
-            </Link>
-          </div>
-        </div>
-      </div>
-    </footer>
+    <Box
+      component="footer"
+      sx={{
+        bgcolor: "var(--panel)",
+        borderTop: "1px solid var(--line)",
+        py: 5,
+        px: 3,
+        textAlign: "center",
+        color: "var(--text-muted)",
+        fontSize: "14px",
+      }}
+    >
+      <Typography variant="body2">
+        &copy; {new Date().getFullYear()} PodCraft. All rights reserved.
+        {" | "}
+        <Link href="#" style={{ color: "var(--brand)", textDecoration: "none", fontWeight: 500 }}>
+          隐私政策
+        </Link>
+        {" | "}
+        <Link href="#" style={{ color: "var(--brand)", textDecoration: "none", fontWeight: 500 }}>
+          服务条款
+        </Link>
+      </Typography>
+    </Box>
   );
 }

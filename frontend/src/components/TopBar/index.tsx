@@ -2,12 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
-import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
-import IconButton from "@mui/material/IconButton";
 import Chip from "@mui/material/Chip";
 import Drawer from "@mui/material/Drawer";
 import List from "@mui/material/List";
@@ -15,143 +12,150 @@ import ListItem from "@mui/material/ListItem";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
 import Divider from "@mui/material/Divider";
-import HomeIcon from "@mui/icons-material/Home";
+import IconButton from "@mui/material/IconButton";
 import MenuIcon from "@mui/icons-material/Menu";
-import PodcastsIcon from "@mui/icons-material/Podcasts";
 import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
-import AccountCircleIcon from "@mui/icons-material/AccountCircle";
-
-interface TopBarProps {
-  title?: string;
-}
+import PodcastsIcon from "@mui/icons-material/Podcasts";
 
 const NAV_ITEMS = [
-  { label: "声音工坊", href: "/voices", icon: <RecordVoiceOverIcon /> },
-  { label: "我的播客", href: "/podcasts", icon: <PodcastsIcon /> },
+  { label: "声音工坊", href: "/voices", icon: <RecordVoiceOverIcon fontSize="small" /> },
+  { label: "我的播客", href: "/podcasts", icon: <PodcastsIcon fontSize="small" /> },
 ];
 
-export default function TopBar({ title = "PodCraft" }: TopBarProps) {
+export default function TopBar() {
   const [mobileOpen, setMobileOpen] = React.useState(false);
-
-  const toggleMobile = () => setMobileOpen((prev) => !prev);
 
   return (
     <>
-      <AppBar position="sticky" color="inherit" elevation={1} sx={{ zIndex: 1200 }}>
-        <Toolbar sx={{ justifyContent: "space-between" }}>
-          {/* Left: Logo + Desktop Nav */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 3 }}>
-            <IconButton
-              edge="start"
-              color="primary"
-              aria-label="home"
+      <Box
+        component="header"
+        sx={{
+          position: "sticky",
+          top: 0,
+          zIndex: 100,
+          backdropFilter: "blur(8px)",
+          bgcolor: "rgba(255,255,255,0.9)",
+          borderBottom: "1px solid",
+          borderColor: "divider",
+          px: 3,
+          py: 1.5,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        {/* Left: Brand Badge + Title */}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+          <Box
+            component={Link}
+            href="/"
+            sx={{
+              width: 32,
+              height: 32,
+              borderRadius: "8px",
+              bgcolor: "var(--brand)",
+              display: "inline-grid",
+              placeItems: "center",
+              textDecoration: "none",
+              flexShrink: 0,
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 18l6-12 6 12M8.5 13h7" />
+            </svg>
+          </Box>
+          <Typography
+            variant="subtitle1"
+            component={Link}
+            href="/"
+            sx={{ fontWeight: 700, fontSize: "18px", color: "var(--text)", textDecoration: "none", letterSpacing: "-0.02em" }}
+          >
+            PodCraft
+          </Typography>
+        </Box>
+
+        {/* Center: Nav Items (desktop) */}
+        <Box sx={{ display: { xs: "none", md: "flex" }, gap: 1 }}>
+          {NAV_ITEMS.map((item) => (
+            <Button
+              key={item.href}
               component={Link}
-              href="/"
-              sx={{ mr: 1 }}
-            >
-              <HomeIcon />
-            </IconButton>
-            <Typography
-              variant="h6"
-              noWrap
-              component={Link}
-              href="/"
+              href={item.href}
+              startIcon={item.icon}
               sx={{
-                textDecoration: "none",
-                color: "primary.main",
-                fontWeight: 700,
-                display: { xs: "none", sm: "block" },
+                color: "var(--text-muted)",
+                fontSize: "14px",
+                fontWeight: 500,
+                textTransform: "none",
+                borderRadius: "8px",
+                px: 2,
+                py: 1,
+                border: "1px solid transparent",
+                "&:hover": { bgcolor: "#f5f5f5", color: "var(--brand)", borderColor: "#d1d5db" },
               }}
             >
-              {title}
-            </Typography>
-
-            {/* Desktop nav links */}
-            <Box sx={{ display: { xs: "none", md: "flex" }, gap: 1 }}>
-              {NAV_ITEMS.map((item) => (
-                <Button
-                  key={item.href}
-                  color="inherit"
-                  component={Link}
-                  href={item.href}
-                  startIcon={item.icon}
-                >
-                  {item.label}
-                </Button>
-              ))}
-            </Box>
-          </Box>
-
-          {/* Right: Credits + Login */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Chip
-              label="500 积分"
-              color="success"
-              size="small"
-              variant="outlined"
-              sx={{ display: { xs: "none", sm: "inline-flex" } }}
-            />
-            <Button
-              size="small"
-              variant="text"
-              component={Link}
-              href="/login"
-              startIcon={<AccountCircleIcon />}
-            >
-              登录
+              {item.label}
             </Button>
+          ))}
+        </Box>
 
-            {/* Mobile menu toggle */}
-            <IconButton
-              color="inherit"
-              aria-label="open menu"
-              edge="end"
-              onClick={toggleMobile}
-              sx={{ display: { md: "none" } }}
-            >
-              <MenuIcon />
-            </IconButton>
-          </Box>
-        </Toolbar>
-      </AppBar>
+        {/* Right: Credits + Login */}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Chip
+            label="500 积分"
+            size="small"
+            sx={{
+              display: { xs: "none", sm: "inline-flex" },
+              bgcolor: "var(--success-light)",
+              color: "var(--success)",
+              fontWeight: 600,
+              fontSize: "12px",
+            }}
+          />
+          <Button
+            component={Link}
+            href="/login"
+            sx={{
+              color: "var(--text-muted)",
+              fontSize: "14px",
+              fontWeight: 500,
+              textTransform: "none",
+              "&:hover": { color: "var(--brand)" },
+            }}
+          >
+            登录
+          </Button>
+          <IconButton
+            sx={{ display: { md: "none" }, color: "var(--text)" }}
+            onClick={() => setMobileOpen(true)}
+          >
+            <MenuIcon />
+          </IconButton>
+        </Box>
+      </Box>
 
       {/* Mobile Drawer */}
-      <Drawer
-        anchor="right"
-        open={mobileOpen}
-        onClose={toggleMobile}
-        ModalProps={{ keepMounted: true }}
-      >
-        <Box sx={{ width: 250 }} role="presentation" onClick={toggleMobile}>
+      <Drawer anchor="right" open={mobileOpen} onClose={() => setMobileOpen(false)}>
+        <Box sx={{ width: 250 }} role="presentation" onClick={() => setMobileOpen(false)}>
           <List>
             <ListItem>
-              <Typography variant="h6" color="primary" fontWeight={700}>
-                {title}
-              </Typography>
+              <Typography variant="h6" sx={{ fontWeight: 700, color: "var(--brand)" }}>PodCraft</Typography>
             </ListItem>
             <Divider />
             <ListItem disablePadding>
-              <ListItemButton component={Link} href="/">
-                <ListItemText primary="首页" />
-              </ListItemButton>
+              <ListItemButton component={Link} href="/"><ListItemText primary="首页" /></ListItemButton>
             </ListItem>
             {NAV_ITEMS.map((item) => (
               <ListItem key={item.href} disablePadding>
-                <ListItemButton component={Link} href={item.href}>
-                  <ListItemText primary={item.label} />
-                </ListItemButton>
+                <ListItemButton component={Link} href={item.href}><ListItemText primary={item.label} /></ListItemButton>
               </ListItem>
             ))}
             <Divider />
             <ListItem disablePadding>
-              <ListItemButton component={Link} href="/login">
-                <ListItemText primary="登录" />
-              </ListItemButton>
+              <ListItemButton component={Link} href="/login"><ListItemText primary="登录" /></ListItemButton>
             </ListItem>
             <ListItem disablePadding>
-              <ListItemButton component={Link} href="/register">
-                <ListItemText primary="注册" />
-              </ListItemButton>
+              <ListItemButton component={Link} href="/register"><ListItemText primary="注册" /></ListItemButton>
             </ListItem>
           </List>
         </Box>

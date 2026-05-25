@@ -1,10 +1,19 @@
 import * as React from "react";
+import Container from "@mui/material/Container";
+import Typography from "@mui/material/Typography";
+import Alert from "@mui/material/Alert";
+import Box from "@mui/material/Box";
 
 export default function PodcastsPage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-8">
-      <h1 className="text-3xl font-bold text-gray-900">我的播客</h1>
-      <p className="mt-4 text-gray-600">播客列表页面（开发中）</p>
-    </main>
+    <Container maxWidth="lg" sx={{ py: 6 }}>
+      <Typography variant="h4" fontWeight={700} gutterBottom>
+        我的播客
+      </Typography>
+      <Alert severity="info">播客列表功能即将上线</Alert>
+      <Box sx={{ mt: 4, textAlign: "center", color: "text.secondary" }}>
+        此处将展示播客列表（标题/类型/状态/时长/字数/积分消耗），支持筛选、操作按钮与空状态提示
+      </Box>
+    </Container>
   );
 }

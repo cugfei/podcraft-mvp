@@ -1,10 +1,15 @@
 import * as React from "react";
+import Container from "@mui/material/Container";
+import Typography from "@mui/material/Typography";
+import Alert from "@mui/material/Alert";
 
 export default function LoginPage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-8">
-      <h1 className="text-3xl font-bold text-gray-900">登录</h1>
-      <p className="mt-4 text-gray-600">登录页面（开发中）</p>
-    </main>
+    <Container maxWidth="xs" sx={{ py: 10 }}>
+      <Typography variant="h4" fontWeight={700} textAlign="center" gutterBottom>
+        登录 PodCraft
+      </Typography>
+      <Alert severity="info">登录表单即将上线 — 支持邮箱/手机号 + 密码登录</Alert>
+    </Container>
   );
 }

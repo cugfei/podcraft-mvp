@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
@@ -16,6 +17,11 @@ import IconButton from "@mui/material/IconButton";
 import MenuIcon from "@mui/icons-material/Menu";
 import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
 import PodcastsIcon from "@mui/icons-material/Podcasts";
+import Avatar from "@mui/material/Avatar";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import LogoutIcon from "@mui/icons-material/Logout";
+import { useAuth } from "@/context/AuthContext";
 
 const NAV_ITEMS = [
   { label: "声音工坊", href: "/voices", icon: <RecordVoiceOverIcon fontSize="small" /> },
@@ -24,6 +30,25 @@ const NAV_ITEMS = [
 
 export default function TopBar() {
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const { user, logout } = useAuth();
+  const router = useRouter();
+
+  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleLogout = () => {
+    handleMenuClose();
+    logout();
+    router.push("/");
+  };
+
+  const displayName = user?.nickname || user?.email || "用户";
 
   return (
     <>
@@ -44,7 +69,7 @@ export default function TopBar() {
           justifyContent: "space-between",
         }}
       >
-        {/* Left: Brand Badge + Title */}
+        {/* Left: Badge + Title */}
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
           <Box
             component={Link}
@@ -99,32 +124,78 @@ export default function TopBar() {
           ))}
         </Box>
 
-        {/* Right: Credits + Login */}
+        {/* Right: Credits + Login/User */}
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-          <Chip
-            label="500 积分"
-            size="small"
-            sx={{
-              display: { xs: "none", sm: "inline-flex" },
-              bgcolor: "var(--success-light)",
-              color: "var(--success)",
-              fontWeight: 600,
-              fontSize: "12px",
-            }}
-          />
-          <Button
-            component={Link}
-            href="/login"
-            sx={{
-              color: "var(--text-muted)",
-              fontSize: "14px",
-              fontWeight: 500,
-              textTransform: "none",
-              "&:hover": { color: "var(--brand)" },
-            }}
-          >
-            登录
-          </Button>
+          {user ? (
+            <>
+              <Chip
+                label="500 积分"
+                size="small"
+                sx={{
+                  display: { xs: "none", sm: "inline-flex" },
+                  bgcolor: "var(--success-light)",
+                  color: "var(--success)",
+                  fontWeight: 600,
+                  fontSize: "12px",
+                }}
+              />
+              <Button
+                onClick={handleMenuOpen}
+                sx={{
+                  textTransform: "none",
+                  color: "var(--text)",
+                  fontWeight: 500,
+                  borderRadius: "8px",
+                  gap: 1,
+                }}
+              >
+                <Avatar sx={{ width: 28, height: 28, bgcolor: "var(--brand)" }}>
+                  {displayName[0]?.toUpperCase()}
+                </Avatar>
+                <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
+                  {displayName}
+                </Box>
+              </Button>
+              <Menu
+                anchorEl={anchorEl}
+                open={Boolean(anchorEl)}
+                onClose={handleMenuClose}
+                anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                transformOrigin={{ vertical: "top", horizontal: "right" }}
+              >
+                <MenuItem onClick={handleLogout}>
+                  <LogoutIcon fontSize="small" sx={{ mr: 1 }} />
+                  退出登录
+                </MenuItem>
+              </Menu>
+            </>
+          ) : (
+            <>
+              <Button
+                component={Link}
+                href="/login"
+                sx={{
+                  color: "var(--text-muted)",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  textTransform: "none",
+                  "&:hover": { color: "var(--brand)" },
+                }}
+              >
+                登录
+              </Button>
+              <Button
+                component={Link}
+                href="/register"
+                variant="contained"
+                color="success"
+                size="small"
+                sx={{ borderRadius: "8px", textTransform: "none" }}
+              >
+                注册
+              </Button>
+            </>
+          )}
           <IconButton
             sx={{ display: { md: "none" }, color: "var(--text)" }}
             onClick={() => setMobileOpen(true)}
@@ -151,12 +222,22 @@ export default function TopBar() {
               </ListItem>
             ))}
             <Divider />
-            <ListItem disablePadding>
-              <ListItemButton component={Link} href="/login"><ListItemText primary="登录" /></ListItemButton>
-            </ListItem>
-            <ListItem disablePadding>
-              <ListItemButton component={Link} href="/register"><ListItemText primary="注册" /></ListItemButton>
-            </ListItem>
+            {user ? (
+              <>
+                <ListItem disablePadding>
+                  <ListItemButton onClick={handleLogout}><ListItemText primary="退出登录" /></ListItemButton>
+                </ListItem>
+              </>
+            ) : (
+              <>
+                <ListItem disablePadding>
+                  <ListItemButton component={Link} href="/login"><ListItemText primary="登录" /></ListItemButton>
+                </ListItem>
+                <ListItem disablePadding>
+                  <ListItemButton component={Link} href="/register"><ListItemText primary="注册" /></ListItemButton>
+                </ListItem>
+              </>
+            )}
           </List>
         </Box>
       </Drawer>

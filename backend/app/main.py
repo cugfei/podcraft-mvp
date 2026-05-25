@@ -11,6 +11,7 @@ from app.config import get_settings
 from app.database import engine, Base
 from app.api.v1.health import router as health_router
 from app.api.v1.synthesis import router as synthesis_router
+from app.api.v1.auth import router as auth_router
 from app.exceptions import AppException
 from app.middleware.logging import RequestLoggingMiddleware
 from app.utils.response import success, error
@@ -108,6 +109,7 @@ async def global_exception_handler(
 # ---------------------------------------------------------------------------
 app.include_router(health_router, prefix="/api")
 app.include_router(synthesis_router, prefix="/api")
+app.include_router(auth_router, prefix="")
 
 
 @app.on_event("startup")

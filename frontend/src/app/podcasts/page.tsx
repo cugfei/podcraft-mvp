@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -16,6 +17,7 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import EditIcon from "@mui/icons-material/Edit";
 import DownloadIcon from "@mui/icons-material/Download";
 import DeleteIcon from "@mui/icons-material/Delete";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 
 const MOCK_PODCASTS = [
   { id: "p1", title: "AI 改变教育行业", mode: "duo", style: "professional", status: "completed", duration: "3:24", chars: 1200, credits: 1200, created: "2026-05-25" },
@@ -32,6 +34,7 @@ const statusMap: Record<string, { label: string; color: "default" | "success" | 
 };
 
 export default function PodcastsPage() {
+  useRequireAuth();
   const [filter, setFilter] = React.useState("all");
 
   const filtered = filter === "all" ? MOCK_PODCASTS : MOCK_PODCASTS.filter((p) => {

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -18,6 +19,7 @@ import Alert from "@mui/material/Alert";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 
 const MODES = [
   { value: "solo", label: "单人解读", desc: "适合知识分享、新闻播报" },
@@ -46,6 +48,7 @@ const VOICE_OPTIONS = [
 ];
 
 export default function CreatePage() {
+  useRequireAuth();
   const [mode, setMode] = React.useState("solo");
   const [style, setStyle] = React.useState("professional");
   const [topic, setTopic] = React.useState("");

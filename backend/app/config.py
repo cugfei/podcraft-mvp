@@ -29,6 +29,7 @@ class Settings(BaseSettings):
 
     # Security
     SECRET_KEY: str = "change-me-in-production"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
 
     # TTS Provider Configuration
     TTS_PROVIDER_PRIMARY: str = "minimax"

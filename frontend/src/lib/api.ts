@@ -98,6 +98,49 @@ export async function del<T>(endpoint: string, options?: ApiRequestOptions): Pro
 }
 
 // ---------------------------------------------------------------------------
+// Authentication
+// ---------------------------------------------------------------------------
+
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  email?: string;
+  phone?: string;
+  password: string;
+  nickname?: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  token_type: string;
+  user_id: string;
+  email?: string;
+  nickname?: string;
+}
+
+/** Login with email/phone + password. Returns AuthResponse. */
+export async function login(
+  data: LoginRequest
+): Promise<AuthResponse> {
+  return post<AuthResponse>("/api/v1/auth/login", data);
+}
+
+/** Register a new user. Returns AuthResponse. */
+export async function register(
+  data: RegisterRequest
+): Promise<AuthResponse> {
+  return post<AuthResponse>("/api/v1/auth/register", data);
+}
+
+/** Get current user info (requires auth). */
+export async function getMe(): Promise<AuthResponse & { role: string; status: string }> {
+  return get<AuthResponse & { role: string; status: string }>("/api/v1/auth/me");
+}
+
+// ---------------------------------------------------------------------------
 // Domain-specific API calls
 // ---------------------------------------------------------------------------
 

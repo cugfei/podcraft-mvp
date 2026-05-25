@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -9,20 +10,33 @@ import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import Alert from "@mui/material/Alert";
+import CircularProgress from "@mui/material/CircularProgress";
+import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const { login, loading } = useAuth();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState("");
+  const [submitting, setSubmitting] = React.useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       setError("请填写邮箱和密码");
       return;
     }
     setError("");
-    // TODO: 接入后端认证 API
+    setSubmitting(true);
+    try {
+      await login(email, password);
+      router.push("/");
+    } catch {
+      // error is set by AuthContext
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -54,8 +68,16 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
           sx={{ mb: 3 }}
         />
-        <Button type="submit" variant="contained" color="success" fullWidth size="large" sx={{ mb: 2 }}>
-          登录
+        <Button
+          type="submit"
+          variant="contained"
+          color="success"
+          fullWidth
+          size="large"
+          sx={{ mb: 2 }}
+          disabled={submitting || loading}
+        >
+          {submitting ? <CircularProgress size={24} color="inherit" /> : "登录"}
         </Button>
       </Box>
 

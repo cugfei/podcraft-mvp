@@ -16,6 +16,10 @@ python-dotenv>=1.0.0
 # File Upload
 python-multipart>=0.0.6
 
+# Authentication
+pyjwt>=2.8.0
+passlib[bcrypt]>=1.7.4
+
 # HTTP Client
 httpx>=0.24.0
 

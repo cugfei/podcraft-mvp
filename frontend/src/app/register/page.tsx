@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -9,14 +10,19 @@ import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import Alert from "@mui/material/Alert";
+import CircularProgress from "@mui/material/CircularProgress";
+import { useAuth } from "@/context/AuthContext";
 
 export default function RegisterPage() {
+  const router = useRouter();
+  const { register, loading } = useAuth();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [confirm, setConfirm] = React.useState("");
   const [error, setError] = React.useState("");
+  const [submitting, setSubmitting] = React.useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password || !confirm) {
       setError("请填写所有字段");
@@ -31,7 +37,15 @@ export default function RegisterPage() {
       return;
     }
     setError("");
-    // TODO: 接入后端注册 API
+    setSubmitting(true);
+    try {
+      await register({ email, password, nickname: email.split("@")[0] });
+      router.push("/");
+    } catch {
+      // error is set by AuthContext
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -49,7 +63,8 @@ export default function RegisterPage() {
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
         <TextField
-          label="邮箱 / 手机号"
+          label="邮箱"
+          type="email"
           fullWidth
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -71,8 +86,16 @@ export default function RegisterPage() {
           onChange={(e) => setConfirm(e.target.value)}
           sx={{ mb: 3 }}
         />
-        <Button type="submit" variant="contained" color="success" fullWidth size="large" sx={{ mb: 2 }}>
-          注册（送 500 积分）
+        <Button
+          type="submit"
+          variant="contained"
+          color="success"
+          fullWidth
+          size="large"
+          sx={{ mb: 2 }}
+          disabled={submitting || loading}
+        >
+          {submitting ? <CircularProgress size={24} color="inherit" /> : "注册（送 500 积分）"}
         </Button>
       </Box>
 

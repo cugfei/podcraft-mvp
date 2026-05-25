@@ -11,13 +11,10 @@ import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import InputLabel from "@mui/material/InputLabel";
 import FormControl from "@mui/material/FormControl";
-import Chip from "@mui/material/Chip";
 import Slider from "@mui/material/Slider";
 import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import Alert from "@mui/material/Alert";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
@@ -138,25 +135,33 @@ export default function CreatePage() {
         <Grid container spacing={2}>
           {MODES.map((m) => (
             <Grid item xs={12} sm={4} key={m.value}>
-              <Card
-                variant={mode === m.value ? "elevation" : "outlined"}
-                elevation={mode === m.value ? 3 : 0}
+              <Box
+                onClick={() => setMode(m.value)}
                 sx={{
                   cursor: "pointer",
-                  borderColor: mode === m.value ? "success.main" : undefined,
-                  "&:hover": { borderColor: "success.light" },
+                  bgcolor: "var(--panel)",
+                  border: "2px solid",
+                  borderColor: mode === m.value ? "var(--brand)" : "var(--line)",
+                  borderRadius: "var(--radius)",
+                  p: 3,
+                  textAlign: "center",
+                  transition: "all 0.3s cubic-bezier(0.4,0,0.2,1)",
+                  boxShadow: mode === m.value ? "0 8px 24px rgba(11,11,13,0.15)" : "var(--shadow-sm)",
+                  transform: mode === m.value ? "scale(1.03)" : "none",
+                  "&:hover": {
+                    transform: "translateY(-4px)",
+                    boxShadow: "0 12px 24px rgba(0,0,0,0.12)",
+                    borderColor: "var(--brand-3)",
+                  },
                 }}
-                onClick={() => setMode(m.value)}
               >
-                <CardContent sx={{ textAlign: "center", py: 2 }}>
-                  <Typography variant="subtitle1" fontWeight={600}>
-                    {m.label}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {m.desc}
-                  </Typography>
-                </CardContent>
-              </Card>
+                <Typography variant="subtitle1" fontWeight={700} sx={{ fontSize: "18px", mb: 0.5 }}>
+                  {m.label}
+                </Typography>
+                <Typography variant="caption" sx={{ color: "var(--text-muted)" }}>
+                  {m.desc}
+                </Typography>
+              </Box>
             </Grid>
           ))}
         </Grid>

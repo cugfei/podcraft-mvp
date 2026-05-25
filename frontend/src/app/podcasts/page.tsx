@@ -6,13 +6,11 @@ import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import Grid from "@mui/material/Grid";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import CardActions from "@mui/material/CardActions";
 import Chip from "@mui/material/Chip";
 import Button from "@mui/material/Button";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
+import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import EditIcon from "@mui/icons-material/Edit";
@@ -65,38 +63,47 @@ export default function PodcastsPage() {
         </Box>
       ) : (
         <Grid container spacing={3}>
-          {filtered.map((p) => {
+          {filtered.map((p, i) => {
             const status = statusMap[p.status] || statusMap.draft;
             return (
               <Grid item xs={12} sm={6} md={4} key={p.id}>
-                <Card variant="outlined" sx={{ height: "100%" }}>
-                  <CardContent>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                      <Chip label={p.mode === "duo" ? "双人" : "单人"} size="small" variant="outlined" />
-                      <Chip label={status.label} size="small" color={status.color} />
-                    </Box>
-                    <Typography variant="h6" fontWeight={600} gutterBottom>
-                      {p.title}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      时长: {p.duration} · 字数: {p.chars} · 积分: {p.credits}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      创建于 {p.created}
-                    </Typography>
-                  </CardContent>
-                  <CardActions sx={{ px: 2, pb: 2 }}>
+                <Box
+                  className="proto-card"
+                  sx={{
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    animation: `scaleIn 0.6s ease-out ${0.1 * (i + 1)}s forwards`,
+                    opacity: 0,
+                  }}
+                >
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                    <Chip label={p.mode === "duo" ? "双人" : "单人"} size="small" variant="outlined" sx={{ borderRadius: "8px" }} />
+                    <Chip label={status.label} size="small" color={status.color} sx={{ borderRadius: "8px" }} />
+                  </Box>
+                  <Typography variant="subtitle1" fontWeight={700} sx={{ fontSize: "18px", mb: 1 }}>
+                    {p.title}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: "var(--text-muted)", fontSize: "14px" }}>
+                    时长: {p.duration} · 字数: {p.chars} · 积分: {p.credits}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: "var(--text-light)", mb: 2 }}>
+                    创建于 {p.created}
+                  </Typography>
+                  <Box sx={{ flex: 1 }} />
+                  <Divider sx={{ my: 1.5 }} />
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                     {p.status === "completed" && (
                       <>
-                        <IconButton size="small" color="success"><PlayArrowIcon /></IconButton>
-                        <IconButton size="small"><DownloadIcon /></IconButton>
+                        <IconButton size="small" sx={{ color: "var(--success)" }}><PlayArrowIcon fontSize="small" /></IconButton>
+                        <IconButton size="small"><DownloadIcon fontSize="small" /></IconButton>
                       </>
                     )}
-                    <IconButton size="small" component={Link} href={`/editor/${p.id}`}><EditIcon /></IconButton>
+                    <IconButton size="small" component={Link} href={`/editor/${p.id}`}><EditIcon fontSize="small" /></IconButton>
                     <Box sx={{ flex: 1 }} />
-                    <IconButton size="small" color="error"><DeleteIcon /></IconButton>
-                  </CardActions>
-                </Card>
+                    <IconButton size="small" sx={{ color: "var(--danger)" }}><DeleteIcon fontSize="small" /></IconButton>
+                  </Box>
+                </Box>
               </Grid>
             );
           })}

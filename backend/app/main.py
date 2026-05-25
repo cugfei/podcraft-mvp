@@ -14,6 +14,7 @@ from app.api.v1.synthesis import router as synthesis_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.podcasts import router as podcasts_router
 from app.api.v1.segments import router as segments_router
+from app.api.v1.upload import router as upload_router
 from app.exceptions import AppException
 from app.middleware.logging import RequestLoggingMiddleware
 from app.utils.response import success, error
@@ -114,6 +115,7 @@ app.include_router(synthesis_router, prefix="/api")
 app.include_router(auth_router, prefix="")
 app.include_router(podcasts_router, prefix="/api/podcasts")
 app.include_router(segments_router, prefix="/api")
+app.include_router(upload_router, prefix="/api")
 
 
 @app.on_event("startup")

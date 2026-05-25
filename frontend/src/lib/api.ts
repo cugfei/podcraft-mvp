@@ -348,3 +348,28 @@ export async function synthesizeSegment(
 ): Promise<{ status: string }> {
   return post<{ status: string }>(`/api/segments/${segmentId}/synthesize`);
 }
+
+/** Upload an audio file (reference, background music, etc.). */
+export async function uploadAudio(file: File): Promise<{ id: string; filename: string; file_path: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const url = `${API_BASE_URL}/api/upload/audio`;
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+  if (!response.ok) {
+    throw new ApiError(response.status, `Upload failed: ${response.statusText}`);
+  }
+  const body = (await response.json()) as ApiResponse<{ id: string; filename: string; file_path: string }>;
+  if (body.code !== 0) {
+    throw new ApiError(body.code, body.message || "Upload failed");
+  }
+  return body.data;
+}

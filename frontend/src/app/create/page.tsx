@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
@@ -19,7 +18,9 @@ import Alert from "@mui/material/Alert";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import CircularProgress from "@mui/material/CircularProgress";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { createPodcast, ApiError } from "@/lib/api";
 
 const MODES = [
   { value: "solo", label: "单人解读", desc: "适合知识分享、新闻播报" },
@@ -49,6 +50,8 @@ const VOICE_OPTIONS = [
 
 export default function CreatePage() {
   useRequireAuth();
+  const router = useRouter();
+
   const [mode, setMode] = React.useState("solo");
   const [style, setStyle] = React.useState("professional");
   const [topic, setTopic] = React.useState("");
@@ -59,9 +62,31 @@ export default function CreatePage() {
   const [voiceA, setVoiceA] = React.useState("xiaoxiao");
   const [voiceB, setVoiceB] = React.useState("yunxi");
   const [duoTemplate, setDuoTemplate] = React.useState("host_expert");
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState("");
 
   const charCount = inputType === "text" ? text.length : topic.length;
-  const estimatedCredits = Math.max(20, charCount); // 20 for script gen + 1/char
+  const estimatedCredits = Math.max(20, charCount);
+
+  const handleGenerate = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const project = await createPodcast({
+        title: topic || "Untitled Podcast",
+        mode,
+        style,
+        target_duration: duration,
+      });
+      router.push(`/editor/${project.id}`);
+    } catch (err: unknown) {
+      const message =
+        err instanceof ApiError ? err.message : "创建播客失败，请重试";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Container maxWidth="md" sx={{ py: 6 }}>
@@ -263,23 +288,29 @@ export default function CreatePage() {
 
       {/* Estimated Credits */}
       <Alert severity="info" sx={{ mb: 3 }}>
-        预计消耗：<strong>{estimatedCredits} 积分</strong>（脚本生成 20 + 语音合成约 {Math.max(0, estimatedCredits - 20)}）
+        预计消耗：<strong>{estimatedCredits} 积分</strong>
         &nbsp;·&nbsp;当前余额：<strong>500 积分</strong>
       </Alert>
 
+      {/* Error */}
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError("")}>
+          {error}
+        </Alert>
+      )}
+
       {/* Submit */}
       <Button
-        component={Link}
-        href="/editor/new"
         variant="contained"
         color="success"
         size="large"
         fullWidth
-        endIcon={<ArrowForwardIcon />}
-        disabled={charCount === 0 || charCount > 5000}
+        endIcon={loading ? <CircularProgress size={20} color="inherit" /> : <ArrowForwardIcon />}
+        disabled={loading || charCount === 0 || charCount > 5000}
+        onClick={handleGenerate}
         sx={{ py: 1.5, fontSize: "1.1rem" }}
       >
-        生成播客
+        {loading ? "创建中..." : "生成播客"}
       </Button>
     </Container>
   );

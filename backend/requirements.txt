@@ -15,3 +15,9 @@ python-dotenv>=1.0.0
 
 # File Upload
 python-multipart>=0.0.6
+
+# HTTP Client
+httpx>=0.24.0
+
+# TTS Providers
+edge-tts>=7.0.0

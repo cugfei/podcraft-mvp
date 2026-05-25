@@ -24,9 +24,12 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = "change-me-in-production"
 
-    # TTS Service
-    TTS_SERVICE_URL: str = ""
-    TTS_API_KEY: str = ""
+    # TTS Provider Configuration
+    TTS_PROVIDER_PRIMARY: str = "minimax"
+    TTS_MINIMAX_API_KEY: str = ""
+    TTS_MINIMAX_API_BASE: str = "https://api.minimax.chat"
+    TTS_MINIMAX_MAX_QPS: int = 10
+    TTS_EDGETTS_ENABLED: bool = True
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

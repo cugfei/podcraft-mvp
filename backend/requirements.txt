@@ -21,3 +21,7 @@ httpx>=0.24.0
 
 # TTS Providers
 edge-tts>=7.0.0
+
+# Task Queue
+celery>=5.3.0
+redis>=4.0.0

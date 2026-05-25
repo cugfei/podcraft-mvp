@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite:///./dev.db"
 
+    # Redis / Celery
+    REDIS_URL: str = "redis://localhost:6379/0"
+
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
 

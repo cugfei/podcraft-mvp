@@ -27,18 +27,21 @@ Base = declarative_base()
 
 
 def get_db():
-    """Dependency that provides a database session.
+    """Dependency that provides a database session (FastAPI).
 
     Yields:
         Session: A SQLAlchemy database session.
-
-    Usage in FastAPI route:
-        @app.get("/items/")
-        def read_items(db: Session = Depends(get_db)):
-            ...
     """
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+
+def get_session():
+    """Return a new database session (Celery / scripts).
+
+    Caller is responsible for closing the session.
+    """
+    return SessionLocal()

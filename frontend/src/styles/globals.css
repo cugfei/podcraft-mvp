@@ -192,6 +192,170 @@ h6 {
   }
 }
 
+/* ========== Hero Section ========== */
+.hero-section {
+  position: relative;
+  overflow: hidden;
+  padding: 80px 24px 60px;
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .hero-section {
+    padding: 120px 24px 80px;
+  }
+}
+
+.hero-section::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background:
+    radial-gradient(circle 600px at 20% 20%, rgba(11, 11, 13, 0.03), transparent),
+    radial-gradient(circle 500px at 80% 30%, rgba(31, 41, 55, 0.02), transparent);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.hero-title-text {
+  font-size: 56px;
+  font-weight: 800;
+  line-height: 1.1;
+  margin-bottom: 24px;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, var(--text) 0%, var(--brand-2) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: textReveal 1s ease-out forwards;
+}
+
+@media (max-width: 768px) {
+  .hero-title-text {
+    font-size: 36px;
+  }
+}
+
+.hero-subtitle-text {
+  font-size: 20px;
+  color: var(--text-muted);
+  margin-bottom: 40px;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.6;
+  animation: slideUp 0.8s ease-out 0.2s forwards;
+  opacity: 0;
+}
+
+@media (max-width: 768px) {
+  .hero-subtitle-text {
+    font-size: 16px;
+  }
+}
+
+.hero-actions-row {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  animation: slideUp 0.8s ease-out 0.4s forwards;
+  opacity: 0;
+}
+
+@media (max-width: 768px) {
+  .hero-actions-row {
+    flex-direction: column;
+    align-items: center;
+  }
+  .hero-btn {
+    width: 100%;
+    max-width: 300px;
+    justify-content: center;
+  }
+}
+
+/* ========== Feature Card Animation ========== */
+.feature-card-animated {
+  animation: scaleIn 0.6s ease-out forwards;
+  opacity: 0;
+}
+
+.feature-icon-box {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--bg-soft);
+  display: grid;
+  place-items: center;
+  margin-bottom: 16px;
+}
+
+.feature-icon-box svg {
+  width: 24px;
+  height: 24px;
+  color: var(--brand);
+}
+
+/* ========== Pricing Cards ========== */
+.pricing-card-normal,
+.pricing-card-featured {
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  padding: 32px 24px;
+  text-align: center;
+  transition: all 0.3s;
+}
+
+.pricing-card-featured {
+  border-color: var(--brand);
+  box-shadow: 0 8px 24px rgba(11, 11, 13, 0.15);
+  transform: scale(1.05);
+}
+
+@media (max-width: 768px) {
+  .pricing-card-featured {
+    transform: none;
+  }
+}
+
+.pricing-price-block {
+  margin: 20px 0;
+}
+
+.pricing-price-value {
+  font-size: 48px;
+  font-weight: 900;
+  color: var(--brand);
+  letter-spacing: -0.02em;
+}
+
+.pricing-price-unit {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+.pricing-features-list {
+  list-style: none;
+  margin: 20px 0;
+  padding: 0;
+  text-align: left;
+}
+
+.pricing-features-list li {
+  padding: 8px 0;
+  font-size: 14px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* ========== Scrollbar Styling ========== */
 ::-webkit-scrollbar {
   width: 6px;

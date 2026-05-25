@@ -1,0 +1,67 @@
+# ===== 依赖 =====
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg-info/
+dist/
+build/
+
+# ===== 虚拟环境 =====
+backend/.venv/
+backend/venv/
+backend/env/
+.env
+.env.*
+
+# ===== 数据库 =====
+backend/dev.db
+backend/*.db
+*.db-journal
+
+# ===== 构建产物 =====
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/dist/
+*.next
+
+# ===== IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ===== 日志 =====
+*.log
+logs/
+
+# ===== 临时文件 =====
+*.tmp
+*.temp
+*.bak
+
+# ===== 允许 .env.example 提交 =====
+!.env.example
+!frontend/.env.example
+!backend/.env.example
+
+# ===== 原型文件（不纳入版本控制）=====
+prototype/
+*.html
+!frontend/public/*.html
+
+# ===== 文档（保留 PRD，忽略临时文档）=====
+*.docx
+*.pdf
+tmp/
+temp/
+
+# ===== pnpm =====
+pnpm-lock.yaml
+pnpm-workspace.yaml

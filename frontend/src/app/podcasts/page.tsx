@@ -17,14 +17,10 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import EditIcon from "@mui/icons-material/Edit";
 import DownloadIcon from "@mui/icons-material/Download";
 import DeleteIcon from "@mui/icons-material/Delete";
+import CircularProgress from "@mui/material/CircularProgress";
+import Alert from "@mui/material/Alert";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-
-const MOCK_PODCASTS = [
-  { id: "p1", title: "AI 改变教育行业", mode: "duo", style: "professional", status: "completed", duration: "3:24", chars: 1200, credits: 1200, created: "2026-05-25" },
-  { id: "p2", title: "量子计算入门", mode: "solo", style: "casual", status: "completed", duration: "5:10", chars: 1800, credits: 1800, created: "2026-05-24" },
-  { id: "p3", title: "2026 年科技趋势", mode: "duo", style: "news", status: "draft", duration: "-", chars: 800, credits: 0, created: "2026-05-23" },
-  { id: "p4", title: "深度学习原理", mode: "solo", style: "storytelling", status: "failed", duration: "-", chars: 2500, credits: 0, created: "2026-05-22" },
-];
+import { listPodcasts, deletePodcast, ApiError, PodcastProject } from "@/lib/api";
 
 const statusMap: Record<string, { label: string; color: "default" | "success" | "error" | "warning" }> = {
   completed: { label: "已完成", color: "success" },
@@ -35,13 +31,43 @@ const statusMap: Record<string, { label: string; color: "default" | "success" | 
 
 export default function PodcastsPage() {
   useRequireAuth();
+  const router = useRouter();
   const [filter, setFilter] = React.useState("all");
+  const [podcasts, setPodcasts] = React.useState<PodcastProject[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState("");
 
-  const filtered = filter === "all" ? MOCK_PODCASTS : MOCK_PODCASTS.filter((p) => {
-    if (filter === "completed") return p.status === "completed";
-    if (filter === "draft") return p.status === "draft";
-    return true;
-  });
+  const loadData = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const params: { status?: string } = {};
+      if (filter !== "all") params.status = filter;
+      const res = await listPodcasts(params);
+      setPodcasts(res.items || []);
+    } catch (err: unknown) {
+      const msg = err instanceof ApiError ? err.message : "加载失败";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    loadData();
+  }, [filter]);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("确定要删除这个播客吗？")) return;
+    setError("");
+    try {
+      await deletePodcast(id);
+      loadData();
+    } catch (err: unknown) {
+      const msg = err instanceof ApiError ? err.message : "删除失败";
+      setError(msg);
+    }
+  };
 
   return (
     <Container maxWidth="lg" sx={{ py: 6 }}>
@@ -50,12 +76,22 @@ export default function PodcastsPage() {
       </Typography>
 
       <Tabs value={filter} onChange={(_, v) => setFilter(v)} sx={{ mb: 3 }}>
-        <Tab label={`全部 (${MOCK_PODCASTS.length})`} value="all" />
+        <Tab label={`全部 (${podcasts.length})`} value="all" />
         <Tab label="已完成" value="completed" />
         <Tab label="草稿" value="draft" />
       </Tabs>
 
-      {filtered.length === 0 ? (
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError("")}>
+          {error}
+        </Alert>
+      )}
+
+      {loading ? (
+        <Box sx={{ textAlign: "center", py: 8 }}>
+          <CircularProgress />
+        </Box>
+      ) : podcats.length === 0 ? (
         <Box sx={{ textAlign: "center", py: 8 }}>
           <Typography variant="h6" color="text.secondary" gutterBottom>
             还没有播客
@@ -66,7 +102,7 @@ export default function PodcastsPage() {
         </Box>
       ) : (
         <Grid container spacing={3}>
-          {filtered.map((p, i) => {
+          {podcasts.map((p, i) => {
             const status = statusMap[p.status] || statusMap.draft;
             return (
               <Grid item xs={12} sm={6} md={4} key={p.id}>
@@ -88,10 +124,10 @@ export default function PodcastsPage() {
                     {p.title}
                   </Typography>
                   <Typography variant="body2" sx={{ color: "var(--text-muted)", fontSize: "14px" }}>
-                    时长: {p.duration} · 字数: {p.chars} · 积分: {p.credits}
+                    状态: {p.status} · 模式: {p.mode}
                   </Typography>
                   <Typography variant="caption" sx={{ color: "var(--text-light)", mb: 2 }}>
-                    创建于 {p.created}
+                    创建于 {p.created_at?.slice(0, 10) || "-"}
                   </Typography>
                   <Box sx={{ flex: 1 }} />
                   <Divider sx={{ my: 1.5 }} />
@@ -104,7 +140,7 @@ export default function PodcastsPage() {
                     )}
                     <IconButton size="small" component={Link} href={`/editor/${p.id}`}><EditIcon fontSize="small" /></IconButton>
                     <Box sx={{ flex: 1 }} />
-                    <IconButton size="small" sx={{ color: "var(--danger)" }}><DeleteIcon fontSize="small" /></IconButton>
+                    <IconButton size="small" sx={{ color: "var(--danger)" }} onClick={() => handleDelete(p.id)}><DeleteIcon fontSize="small" /></IconButton>
                   </Box>
                 </Box>
               </Grid>

@@ -22,6 +22,9 @@ backend/dev.db
 backend/*.db
 *.db-journal
 
+# ===== 存储 =====
+/storage/
+
 # ===== 构建产物 =====
 frontend/.next/
 frontend/out/

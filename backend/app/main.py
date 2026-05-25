@@ -4,7 +4,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
+from app.database import engine, Base
 from app.api.v1.health import router as health_router
+
+# Import all models so Base.metadata is populated for create_all / Alembic
+import app.models  # noqa: F401
 
 settings = get_settings()
 
@@ -30,8 +34,8 @@ app.include_router(health_router, prefix="/api")
 
 @app.on_event("startup")
 async def startup_event() -> None:
-    """Execute tasks on application startup."""
-    pass
+    """Create database tables on startup (dev convenience)."""
+    Base.metadata.create_all(bind=engine)
 
 
 @app.on_event("shutdown")

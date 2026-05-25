@@ -8,27 +8,28 @@ import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Grid from "@mui/material/Grid";
 import Stack from "@mui/material/Stack";
-import PodcastsIcon from "@mui/icons-material/Podcasts";
-import PsychologyIcon from "@mui/icons-material/Psychology";
+import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import TranslateIcon from "@mui/icons-material/Translate";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 
 const FEATURES = [
   {
-    icon: <PodcastsIcon fontSize="large" />,
-    title: "高质量语音合成",
-    desc: "基于 MiniMax Speech-2.8-turbo 引擎，支持情感风格与方言，MOS ≥ 4.0",
+    icon: <AttachMoneyIcon fontSize="large" />,
+    title: "价格优惠",
+    desc: "比官方 API 便宜 50%，按量计费无月费，用多少付多少",
   },
   {
-    icon: <PsychologyIcon fontSize="large" />,
-    title: "AI智能文案",
-    desc: "输入主题或粘贴资料，AI 自动生成专业播客脚本，支持双人对话模式",
+    icon: <AutoAwesomeIcon fontSize="large" />,
+    title: "最新模型",
+    desc: "MiniMax Speech-2.8-turbo 引擎，支持情感风格、方言与多音字",
   },
   {
     icon: <TranslateIcon fontSize="large" />,
     title: "多语言支持",
-    desc: "支持中文、英语及粤语、四川话等方言，覆盖全球主流播客场景",
+    desc: "中文、英语及粤语、四川话等方言，覆盖全球主流播客场景",
   },
   {
     icon: <FavoriteIcon fontSize="large" />,
@@ -38,8 +39,21 @@ const FEATURES = [
 ];
 
 const PLANS = [
-  { name: "免费试用", price: "¥0", desc: "注册即送 500 积分，体验完整生成流程", cta: "免费注册" },
-  { name: "创作者版", price: "¥29/月", desc: "5,000 积分/月，双人播客，完整编辑体验", cta: "立即订阅", primary: true },
+  {
+    name: "免费试用",
+    price: "¥0",
+    unit: "/月",
+    features: ["500 字符免费额度", "基础音色", "单人播客", "MP3 下载"],
+    cta: "免费注册",
+  },
+  {
+    name: "按量计费",
+    price: "¥0.05",
+    unit: "/千字符",
+    features: ["比官方便宜 50%", "全部音色", "双人播客", "片段编辑与重合成", "情感风格", "WAV 导出"],
+    cta: "立即充值",
+    primary: true,
+  },
 ];
 
 export default function HomePage() {
@@ -143,17 +157,29 @@ export default function HomePage() {
                     <Typography variant="h6" fontWeight={600} gutterBottom>
                       {plan.name}
                     </Typography>
-                    <Typography variant="h3" fontWeight={700} color="primary" gutterBottom>
-                      {plan.price}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                      {plan.desc}
-                    </Typography>
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="h2" fontWeight={900} color="primary" component="span">
+                        {plan.price}
+                      </Typography>
+                      <Typography variant="body1" color="text.secondary" component="span">
+                        {plan.unit}
+                      </Typography>
+                    </Box>
+                    <Box component="ul" sx={{ listStyle: "none", p: 0, m: 0, mb: 3 }}>
+                      {plan.features.map((f) => (
+                        <Box component="li" key={f} sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1, justifyContent: "center" }}>
+                          <CheckCircleOutlineIcon fontSize="small" color="success" />
+                          <Typography variant="body2">{f}</Typography>
+                        </Box>
+                      ))}
+                    </Box>
                     <Button
                       component={Link}
                       href="/register"
                       variant={plan.primary ? "contained" : "outlined"}
                       color={plan.primary ? "success" : "primary"}
+                      size="large"
+                      sx={{ px: 4 }}
                     >
                       {plan.cta}
                     </Button>

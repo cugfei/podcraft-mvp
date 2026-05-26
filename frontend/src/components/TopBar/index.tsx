@@ -115,6 +115,7 @@ export default function TopBar() {
                 borderRadius: "8px",
                 px: 2,
                 py: 1,
+                minHeight: "44px", // 最小触摸目标
                 border: "1px solid transparent",
                 "&:hover": { bgcolor: "#f5f5f5", color: "var(--brand)", borderColor: "#d1d5db" },
               }}
@@ -150,9 +151,11 @@ export default function TopBar() {
                   fontWeight: 500,
                   borderRadius: "8px",
                   gap: 1,
+                  minHeight: "44px", // 最小触摸目标
+                  px: 1,
                 }}
               >
-                <Avatar sx={{ width: 28, height: 28, bgcolor: "var(--brand)" }}>
+                <Avatar sx={{ width: 32, height: 32, bgcolor: "var(--brand)" }}>
                   {displayName[0]?.toUpperCase()}
                 </Avatar>
                 <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
@@ -182,6 +185,7 @@ export default function TopBar() {
                   fontSize: "14px",
                   fontWeight: 500,
                   textTransform: "none",
+                  minHeight: "44px", // 最小触摸目标
                   "&:hover": { color: "var(--brand)" },
                 }}
               >
@@ -193,14 +197,23 @@ export default function TopBar() {
                 variant="contained"
                 color="success"
                 size="small"
-                sx={{ borderRadius: "8px", textTransform: "none" }}
+                sx={{ 
+                  borderRadius: "8px", 
+                  textTransform: "none",
+                  minHeight: "44px", // 最小触摸目标
+                }}
               >
                 注册
               </Button>
             </>
           )}
           <IconButton
-            sx={{ display: { md: "none" }, color: "var(--text)" }}
+            sx={{ 
+              display: { md: "none" }, 
+              color: "var(--text)",
+              width: 44,
+              height: 44, // 最小触摸目标
+            }}
             onClick={() => setMobileOpen(true)}
           >
             <MenuIcon />

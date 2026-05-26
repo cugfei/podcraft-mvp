@@ -10,11 +10,11 @@ export default function Footer() {
       sx={{
         bgcolor: "var(--panel)",
         borderTop: "1px solid var(--line)",
-        py: 5,
-        px: 3,
+        py: { xs: 3, md: 5 },
+        px: { xs: 2, sm: 3 },
         textAlign: "center",
         color: "var(--text-muted)",
-        fontSize: "14px",
+        fontSize: { xs: "12px", sm: "14px" },
       }}
     >
       <Typography variant="body2">

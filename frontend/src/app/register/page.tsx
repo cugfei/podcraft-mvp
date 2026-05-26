@@ -68,7 +68,7 @@ export default function RegisterPage() {
           fullWidth
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          sx={{ mb: 2 }}
+          sx={{ mb: 2, "& .MuiInputBase-root": { minHeight: "44px" } }}
         />
         <TextField
           label="密码"
@@ -76,7 +76,7 @@ export default function RegisterPage() {
           fullWidth
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          sx={{ mb: 2 }}
+          sx={{ mb: 2, "& .MuiInputBase-root": { minHeight: "44px" } }}
         />
         <TextField
           label="确认密码"
@@ -84,7 +84,7 @@ export default function RegisterPage() {
           fullWidth
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
-          sx={{ mb: 3 }}
+          sx={{ mb: 3, "& .MuiInputBase-root": { minHeight: "44px" } }}
         />
         <Button
           type="submit"

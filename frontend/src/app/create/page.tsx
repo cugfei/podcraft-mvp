@@ -172,7 +172,7 @@ export default function CreatePage() {
           onChange={(e) => setTopic(e.target.value)}
           error={topic.length > 5000}
           helperText={topic.length > 0 ? `${topic.length}/5000 字` : "请输入播客主题"}
-          sx={{ mb: 3 }}
+          sx={{ mb: 3, "& .MuiInputBase-root": { minHeight: "44px" } }}
         />
       )}
       {inputType === "text" && (
@@ -186,7 +186,7 @@ export default function CreatePage() {
           onChange={(e) => setText(e.target.value)}
           error={textOverLimit}
           helperText={`${charCount}/5000 字${textOverLimit ? " · 已超过字数限制" : ""}`}
-          sx={{ mb: 3 }}
+          sx={{ mb: 3, "& .MuiInputBase-root": { minHeight: "44px" } }}
         />
       )}
       {inputType === "url" && (
@@ -196,7 +196,7 @@ export default function CreatePage() {
           fullWidth
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          sx={{ mb: 3 }}
+          sx={{ mb: 3, "& .MuiInputBase-root": { minHeight: "44px" } }}
         />
       )}
 

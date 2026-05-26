@@ -8,11 +8,12 @@ import wave
 import struct
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
 from app.models.audio_asset import AudioAsset
-from app.models.voice_preset import VoicePreset
+from app.models.voice import VoicePreset
 
 # Directory for storing generated audio files (relative to backend root)
 AUDIO_DIR = Path(__file__).resolve().parent.parent.parent / "static" / "audio"
@@ -22,7 +23,7 @@ AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 def mock_synthesize(
     db: Session,
     project_id: str,
-    segment_id: str | None,
+    segment_id: Optional[str],
     text: str,
     voice_id: str,
     speed: float = 1.0,

@@ -4,10 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from typing import Optional
 
 from app.database import get_db
 from app.api.v1.auth import get_current_user
-from app.models.voice_preset import VoicePreset
+from app.models.voice import VoicePreset
 from app.utils.mock_tts import mock_preview
 from app.utils.response import success
 
@@ -25,19 +26,19 @@ class VoicePreviewRequest(BaseModel):
 class VoiceListResponse(BaseModel):
     id: str
     name: str
-    provider: str | None = None
-    gender: str | None = None
-    language: str | None = None
-    accent: str | None = None
-    preview_text: str | None = None
+    provider: Optional[str] = None
+    gender: Optional[str] = None
+    language: Optional[str] = None
+    accent: Optional[str] = None
+    preview_text: Optional[str] = None
 
 
 # ---- Routes ----
 
 @router.get("")
 def list_voices(
-    language: str | None = None,
-    gender: str | None = None,
+    language: Optional[str] = None,
+    gender: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     """
@@ -121,7 +122,7 @@ def list_voices(
 @router.post("/preview")
 def preview_voice(
     body: VoicePreviewRequest,
-    creds: HTTPAuthorizationCredentials | None = Depends(security),
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: Session = Depends(get_db),
 ):
     """

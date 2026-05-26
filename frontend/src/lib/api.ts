@@ -516,3 +516,113 @@ export function getAudioSrc(assetUrl?: string): string {
   const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   return `${base}${assetUrl}`;
 }
+
+// ---------------------------------------------------------------------------
+// Admin APIs (T-4.9 / T-3.10)
+// ---------------------------------------------------------------------------
+
+export interface AdminUser { id: string; email: string; nickname: string; role: string; status: string; created_at: string; credit_balance: number; }
+export interface CreditTx { id: string; user_id: string; type: string; amount: number; balance_after: number; reference_type: string; description: string; created_at: string; }
+export interface AdminPodcast { id: string; title: string; mode: string; status: string; target_duration: number; created_at: string; }
+export interface AdminTask { id: string; project_id: string; user_id: string; type: string; status: string; total_segments: number; completed_segments: number; error_message: string; created_at: string; }
+export interface AdminVoice { id: string; provider: string; provider_voice_id: string; name: string; language: string; is_cloned: boolean; }
+export interface ProviderConfig { primary: string; fallback: string; minimax_api_key: string; edge_tts_enabled: boolean; }
+export interface Plan { id: string; name: string; price: number; credits: number; }
+
+export async function listAdminUsers(q = "", status = "", skip = 0, limit = 20): Promise<{ total: number; items: AdminUser[] }> {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (status) params.set("status", status);
+  params.set("skip", skip.toString());
+  params.set("limit", limit.toString());
+  return get<{ total: number; items: AdminUser[] }>(`/api/v1/admin/users?${params.toString()}`);
+}
+
+export async function adjustCredit(userId: string, amount: number, reason = "admin_adjust"): Promise<{ balance: number }> {
+  return post<{ balance: number }>("/api/v1/admin/credits/adjust", { user_id: userId, amount, reason });
+}
+
+export async function disableUser(userId: string): Promise<void> {
+  return patch<void>(`/api/v1/admin/users/${userId}/disable`);
+}
+
+export async function enableUser(userId: string): Promise<void> {
+  return patch<void>(`/api/v1/admin/users/${userId}/enable`);
+}
+
+export async function getCreditLedger(userId = "", txType = "", skip = 0, limit = 50): Promise<{ total: number; items: CreditTx[] }> {
+  const params = new URLSearchParams();
+  if (userId) params.set("user_id", userId);
+  if (txType) params.set("tx_type", txType);
+  params.set("skip", skip.toString());
+  params.set("limit", limit.toString());
+  return get<{ total: number; items: CreditTx[] }>(`/api/v1/admin/credits/ledger?${params.toString()}`);
+}
+
+export async function listAdminPodcasts(status = "", skip = 0, limit = 20): Promise<{ total: number; items: AdminPodcast[] }> {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  params.set("skip", skip.toString());
+  params.set("limit", limit.toString());
+  return get<{ total: number; items: AdminPodcast[] }>(`/api/v1/admin/podcasts?${params.toString()}`);
+}
+
+export async function deletePodcastAdmin(projectId: string): Promise<void> {
+  return del<void>(`/api/v1/admin/podcasts/${projectId}`);
+}
+
+export async function listSynthesisTasksAdmin(status = "", userId = "", skip = 0, limit = 20): Promise<{ total: number; items: AdminTask[] }> {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  if (userId) params.set("user_id", userId);
+  params.set("skip", skip.toString());
+  params.set("limit", limit.toString());
+  return get<{ total: number; items: AdminTask[] }>(`/api/v1/admin/synthesis-tasks?${params.toString()}`);
+}
+
+export async function listErrorLogs(skip = 0, limit = 50): Promise<{ total: number; items: []; note: string }> {
+  const params = new URLSearchParams();
+  params.set("skip", skip.toString());
+  params.set("limit", limit.toString());
+  return get<{ total: number; items: []; note: string }>(`/api/v1/admin/error-logs?${params.toString()}`);
+}
+
+export async function listAllVoices(): Promise<{ items: AdminVoice[] }> {
+  return get<{ items: AdminVoice[] }>("/api/v1/admin/voices");
+}
+
+export async function createVoice(data: Partial<AdminVoice>): Promise<AdminVoice> {
+  return post<AdminVoice>("/api/v1/admin/voices", data);
+}
+
+export async function updateVoice(voiceId: string, data: Partial<AdminVoice>): Promise<AdminVoice> {
+  return patch<AdminVoice>(`/api/v1/admin/voices/${voiceId}`, data);
+}
+
+export async function deleteVoice(voiceId: string): Promise<void> {
+  return del<void>(`/api/v1/admin/voices/${voiceId}`);
+}
+
+export async function getProviderConfig(): Promise<ProviderConfig> {
+  return get<ProviderConfig>("/api/v1/admin/providers");
+}
+
+export async function updateProviderConfig(data: Partial<ProviderConfig>): Promise<ProviderConfig> {
+  return patch<ProviderConfig>("/api/v1/admin/providers", data);
+}
+
+export async function listPlans(): Promise<{ items: Plan[] }> {
+  return get<{ items: Plan[] }>("/api/v1/admin/plans");
+}
+
+export async function createPlan(data: Partial<Plan>): Promise<Plan> {
+  return post<Plan>("/api/v1/admin/plans", data);
+}
+
+export async function updatePlan(planId: string, data: Partial<Plan>): Promise<Plan> {
+  return patch<Plan>(`/api/v1/admin/plans/${planId}`, data);
+}
+
+export async function deletePlan(planId: string): Promise<void> {
+  return del<void>(`/api/v1/admin/plans/${planId}`);
+}

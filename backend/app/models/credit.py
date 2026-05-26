@@ -77,6 +77,21 @@ class CreditTransaction(Base):
     user = relationship("User", back_populates="credit_transactions")
     account = relationship("CreditAccount", back_populates="transactions")
 
+    def to_dict(self) -> dict:
+        """Serialize to dict (safe for JSON)."""
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "account_id": self.account_id,
+            "type": self.type,
+            "amount": self.amount,
+            "balance_after": self.balance_after,
+            "reference_type": self.reference_type,
+            "reference_id": self.reference_id,
+            "description": self.description,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
     def __repr__(self) -> str:
         return (
             f"<CreditTransaction(id={self.id!r}, type={self.type!r}, "

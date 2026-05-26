@@ -68,3 +68,7 @@ temp/
 # ===== pnpm =====
 pnpm-lock.yaml
 pnpm-workspace.yaml
+frontend/next-env.d.ts
+backend/login_response.json
+backend/token.txt
+.workbuddy/

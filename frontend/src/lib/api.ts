@@ -469,3 +469,44 @@ export async function uploadAudio(file: File): Promise<{ id: string; filename: s
   }
   return body.data;
 }
+
+// ---------------------------------------------------------------------------
+// Extended Podcast & Segment APIs (T-3.5 ~ T-3.8)
+// ---------------------------------------------------------------------------
+
+/** Rebuild full podcast audio by concatenating completed segment audio. */
+export async function rebuildAudio(
+  projectId: string
+): Promise<{ id: string; url: string; duration_ms: number }> {
+  return post<{ id: string; url: string; duration_ms: number }>(
+    `/api/podcasts/${projectId}/rebuild-audio`
+  );
+}
+
+/** Change a role's voice and mark all its segments as draft. */
+export interface ChangeVoiceRequest {
+  voice_id: string;
+  speed?: number;
+  pitch?: number;
+  volume?: number;
+}
+
+export async function changeVoice(
+  roleId: string,
+  data: ChangeVoiceRequest
+): Promise<PodcastRole> {
+  return post<PodcastRole>(`/api/podcasts/roles/${roleId}/change-voice`, data);
+}
+
+/** Get a single segment by ID (for polling synthesis status). */
+export async function getSegment(segmentId: string): Promise<PodcastSegment> {
+  return get<PodcastSegment>(`/api/segments/${segmentId}`);
+}
+
+/** Helper: convert a backend audio asset URL to a full, usable src. */
+export function getAudioSrc(assetUrl?: string): string {
+  if (!assetUrl) return "";
+  if (assetUrl.startsWith("http")) return assetUrl;
+  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  return `${base}${assetUrl}`;
+}

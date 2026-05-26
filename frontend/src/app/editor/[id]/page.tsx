@@ -24,19 +24,20 @@ import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import Snackbar from "@mui/material/Snackbar";
-import DeleteIcon from "@mui/icons-material/Delete";
-import EditIcon from "@mui/icons-material/Edit";
-import AddIcon from "@mui/icons-material/Add";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import SaveIcon from "@mui/icons-material/Save";
-import CancelIcon from "@mui/icons-material/Cancel";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
+import AudioPlayer from "@/components/AudioPlayer";
 import UndoIcon from "@mui/icons-material/Undo";
 import RedoIcon from "@mui/icons-material/Redo";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import FormatBoldIcon from "@mui/icons-material/FormatBold";
 import FormatItalicIcon from "@mui/icons-material/FormatItalic";
 import FlagIcon from "@mui/icons-material/Flag";
+import SaveIcon from "@mui/icons-material/Save";
+import CancelIcon from "@mui/icons-material/Cancel";
+import DeleteIcon from "@mui/icons-material/Delete";
+import AddIcon from "@mui/icons-material/Add";
+import SettingsIcon from "@mui/icons-material/Settings";
+import EditIcon from "@mui/icons-material/Edit";
+import Drawer from "@mui/material/Drawer";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import {
   getPodcast,
@@ -47,6 +48,10 @@ import {
   deleteSegment,
   reorderSegments,
   synthesizeSegment,
+  rebuildAudio,
+  changeVoice,
+  getSegment,
+  getAudioSrc,
   getCreditBalance,
   ApiError,
   PodcastProject,
@@ -159,6 +164,17 @@ export default function EditorPage() {
   const [multiProDialogOpen, setMultiProDialogOpen] = React.useState(false);
   const [multiProChar, setMultiProChar] = React.useState("");
   const [multiProReading, setMultiProReading] = React.useState("");
+
+  // Audio / Rebuild
+  const [fullAudioUrl, setFullAudioUrl] = React.useState<string | null>(null);
+  const [fullAudioFilename, setFullAudioFilename] = React.useState<string>("");
+  const [buildLoading, setBuildLoading] = React.useState(false);
+
+  // Right panel (voice settings)
+  const [rightPanelOpen, setRightPanelOpen] = React.useState(false);
+
+  // Polling: track segments that are queued/synthesizing
+  const pollingRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Undo/redo (simple client-side)
   const undoStack = React.useRef<Array<{ segs: PodcastSegment[] }>>([]);
@@ -526,6 +542,80 @@ export default function EditorPage() {
   }
 
   // -----------------------------------------------------------------------
+  // Build full audio (T-3.6 & T-3.8)
+  // -----------------------------------------------------------------------
+  const handleBuildAudio = async () => {
+    setBuildLoading(true);
+    setError("");
+    try {
+      const result = await rebuildAudio(projectId);
+      const url = result.url || "";
+      setFullAudioUrl(url);
+      setFullAudioFilename(`full_${projectId}.wav`);
+      setSuccessMsg("音频拼接完成，可使用底部播放器播放");
+    } catch (err: unknown) {
+      const msg = err instanceof ApiError ? err.message : "拼接失败";
+      setError(msg);
+    } finally {
+      setBuildLoading(false);
+    }
+  };
+
+  // -----------------------------------------------------------------------
+  // Polling: update segment status (T-3.5)
+  // -----------------------------------------------------------------------
+  React.useEffect(() => {
+    const hasActive = segments.some(
+      (s) => s.status === "queued" || s.status === "synthesizing"
+    );
+    if (!hasActive) {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      return;
+    }
+    if (pollingRef.current) return;
+    pollingRef.current = setInterval(async () => {
+      try {
+        const updated = await Promise.all(
+          segments
+            .filter((s) => s.status === "queued" || s.status === "synthesizing")
+            .map((s) => getSegment(s.id))
+        );
+        setSegments((prev) =>
+          prev.map((s) => {
+            const u = updated.find((r) => r && r.id === s.id);
+            return u ? { ...s, ...u } : s;
+          })
+        );
+      } catch { /* ignore polling errors */ }
+    }, 3000);
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [segments]);
+
+  // -----------------------------------------------------------------------
+  // Right panel: voice settings (T-3.7)
+  // -----------------------------------------------------------------------
+  const handleChangeVoice = async (roleId: string, data: { voice_id: string; speed?: number; pitch?: number; volume?: number }) => {
+    setError("");
+    try {
+      await changeVoice(roleId, data);
+      setSuccessMsg("音色已切换，相关片段已标记 draft");
+      loadData();
+      setRightPanelOpen(false);
+    } catch (err: unknown) {
+      const msg = err instanceof ApiError ? err.message : "切换失败";
+      setError(msg);
+    }
+  };
+
+  // -----------------------------------------------------------------------
   // Main render
   // -----------------------------------------------------------------------
   return (
@@ -549,6 +639,16 @@ export default function EditorPage() {
           <Tooltip title="重做">
             <IconButton size="small" onClick={handleRedo} disabled={redoStack.current.length === 0}>
               <RedoIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="拼接全部音频">
+            <IconButton size="small" onClick={handleBuildAudio} disabled={buildLoading}>
+              {buildLoading ? <CircularProgress size={20} /> : <PlayArrowIcon fontSize="small" />}
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="音色设置">
+            <IconButton size="small" onClick={() => setRightPanelOpen(true)}>
+              <SettingsIcon fontSize="small" />
             </IconButton>
           </Tooltip>
           <Button variant="outlined" size="small" onClick={() => router.push("/podcasts")}>
@@ -1092,6 +1192,62 @@ export default function EditorPage() {
         onClose={() => setSuccessMsg("")}
         message={successMsg}
       />
+
+      {/* Audio Player (T-3.8) */}
+      {fullAudioUrl && (
+        <Box sx={{ mt: 3, mb: 2 }}>
+          <AudioPlayer src={getAudioSrc(fullAudioUrl)} filename={fullAudioFilename} />
+        </Box>
+      )}
+      {!fullAudioUrl && segments.some(s => s.audio_asset) && (
+        <Button
+          variant="contained"
+          color="secondary"
+          fullWidth
+          onClick={handleBuildAudio}
+          disabled={buildLoading}
+          sx={{ mt: 2, mb: 2 }}
+        >
+          {buildLoading ? "拼接中..." : "拼接全部音频"}
+        </Button>
+      )}
+
+      {/* Right Panel Drawer (T-3.7) */}
+      <Drawer
+        anchor="right"
+        open={rightPanelOpen}
+        onClose={() => setRightPanelOpen(false)}
+      >
+        <Box sx={{ width: 320, p: 2 }}>
+          <Typography variant="h6" gutterBottom>音色设置</Typography>
+          {project?.roles?.map(role => (
+            <Box key={role.id} sx={{ mb: 2, p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1 }}>
+              <Typography variant="subtitle2">{role.name}</Typography>
+              <TextField
+                label="Voice ID"
+                size="small"
+                fullWidth
+                defaultValue={role.voice_id || ""}
+                sx={{ mt: 1 }}
+                id={`voice-${role.id}`}
+              />
+              <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                <Button
+                  size="small"
+                  variant="contained"
+                  onClick={() => {
+                    const input = document.getElementById(`voice-${role.id}`) as HTMLInputElement;
+                    if (input?.value) handleChangeVoice(role.id, { voice_id: input.value });
+                  }}
+                >
+                  确认切换
+                </Button>
+              </Stack>
+            </Box>
+          ))}
+        </Box>
+      </Drawer>
+
     </Container>
   );
 }

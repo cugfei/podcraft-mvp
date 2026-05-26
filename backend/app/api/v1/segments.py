@@ -1,9 +1,13 @@
-"""Podcast segment CRUD + reorder routes — real JWT auth."""
+"""Podcast segment CRUD + reorder + synthesis routes — real JWT auth."""
 
 from typing import List, Optional
+import os
+import threading
+import wave
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.database import get_session
@@ -14,6 +18,12 @@ from app.models.segment import PodcastSegment
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+AUDIO_DIR = Path(__file__).resolve().parent.parent.parent / "static" / "audio"
+AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +81,90 @@ def _get_role(project_id: str, role_key: str, db: Session) -> PodcastRole:
     if not role:
         raise HTTPException(status_code=404, detail=f"Role '{role_key}' not found")
     return role
+
+
+# ---------------------------------------------------------------------------
+# Mock synthesis helpers
+# ---------------------------------------------------------------------------
+
+def _generate_silence_wav(filepath: str, duration_s: int):
+    """Generate a valid WAV file with silence."""
+    sample_rate = 22050
+    num_samples = sample_rate * duration_s
+    with wave.open(filepath, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)   # 16-bit
+        wav.setframerate(sample_rate)
+        wav.writeframes(b"\x00\x00" * num_samples)
+
+
+def _mock_synthesize(segment_id: str):
+    """Background thread: mock TTS → generate WAV → update DB."""
+    from app.database import SessionLocal
+    from app.models.segment import PodcastSegment
+    from app.models.audio_asset import AudioAsset
+    from datetime import datetime, timezone
+
+    db = SessionLocal()
+    try:
+        seg = db.query(PodcastSegment).filter(PodcastSegment.id == segment_id).first()
+        if not seg:
+            return
+
+        # Mark synthesizing
+        seg.status = "synthesizing"
+        seg.updated_at = datetime.now(timezone.utc)
+        db.commit()
+
+        # Generate mock WAV (silence, ~1s per 10 chars)
+        duration_s = max(1, len(seg.text or "") // 10)
+        filename = f"seg_{segment_id}.wav"
+        filepath = AUDIO_DIR / filename
+        _generate_silence_wav(str(filepath), duration_s)
+
+        file_size = filepath.stat().st_size
+        now = datetime.now(timezone.utc)
+
+        # Create or update AudioAsset
+        asset = None
+        if seg.audio_asset_id:
+            asset = db.query(AudioAsset).filter(AudioAsset.id == seg.audio_asset_id).first()
+        if not asset:
+            asset = AudioAsset(
+                project_id=seg.script.project_id if seg.script else None,
+                segment_id=seg.id,
+                type="segment",
+                format="wav",
+                duration_ms=duration_s * 1000,
+                file_size=file_size,
+                url=f"/static/audio/{filename}",
+                created_at=now,
+            )
+            db.add(asset)
+            db.flush()
+            seg.audio_asset_id = asset.id
+        else:
+            asset.url = f"/static/audio/{filename}"
+            asset.file_size = file_size
+            asset.duration_ms = duration_s * 1000
+            asset.updated_at = now
+
+        seg.status = "completed"
+        seg.updated_at = now
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        try:
+            seg = db.query(PodcastSegment).filter(PodcastSegment.id == segment_id).first()
+            if seg:
+                seg.status = "failed"
+                seg.error_message = str(e)[:500]
+                seg.updated_at = datetime.now(timezone.utc)
+                db.commit()
+        except Exception:
+            db.rollback()
+    finally:
+        db.close()
 
 
 # ---------------------------------------------------------------------------
@@ -294,7 +388,7 @@ def reorder_segments(
 
 
 # ---------------------------------------------------------------------------
-# Trigger TTS synthesis for a single segment (preview)
+# Trigger TTS synthesis for a single segment
 # ---------------------------------------------------------------------------
 @router.post("/segments/{segment_id}/synthesize")
 def synthesize_segment(
@@ -302,7 +396,7 @@ def synthesize_segment(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_session),
 ):
-    """Queue a single segment for TTS synthesis (preview)."""
+    """Queue a single segment for TTS synthesis."""
     seg = (
         db.query(PodcastSegment)
         .join(PodcastScript)
@@ -316,12 +410,19 @@ def synthesize_segment(
     if not seg:
         raise HTTPException(status_code=404, detail="Segment not found")
 
-    # Update status to queued
-    from datetime import datetime
+    # Check if already completed recently
+    if seg.status == "completed" and seg.audio_asset_id:
+        return {"code": 0, "data": {"status": "completed", "already_done": True}, "message": "already completed"}
+
+    # Mark as queued
+    from datetime import datetime, timezone
     seg.status = "queued"
-    seg.updated_at = datetime.utcnow()
+    seg.error_message = None
+    seg.updated_at = datetime.now(timezone.utc)
     db.commit()
 
-    # TODO: Actually queue Celery task here
-    # For now, just return accepted
+    # Launch background thread (MVP mock; Phase 4 will use Celery)
+    t = threading.Thread(target=_mock_synthesize, args=(segment_id,), daemon=True)
+    t.start()
+
     return {"code": 0, "data": {"status": "queued"}, "message": "synthesis queued"}

@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -118,6 +119,15 @@ app.include_router(podcasts_router, prefix="/api/podcasts")
 app.include_router(segments_router, prefix="/api")
 app.include_router(upload_router, prefix="/api")
 app.include_router(debug_auth_router, prefix="")
+
+
+# ---------------------------------------------------------------------------
+# Static files — serve generated audio
+# ---------------------------------------------------------------------------
+from pathlib import Path
+AUDIO_STATIC_DIR = Path(__file__).resolve().parent.parent / "static" / "audio"
+AUDIO_STATIC_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/static/audio", StaticFiles(directory=str(AUDIO_STATIC_DIR)), name="audio_static")
 
 
 @app.on_event("startup")

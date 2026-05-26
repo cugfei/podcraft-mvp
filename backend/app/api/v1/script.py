@@ -128,17 +128,16 @@ async def generate_podcast_script(
     # Create segment records
     created_segments = []
     for idx, seg_data in enumerate(segments_data):
-        # Find role
-        role = None
-        if project.mode == "duo":
-            role = (
-                db.query(PodcastRole)
-                .filter(
-                    PodcastRole.project_id == podcast_id,
-                    PodcastRole.role_key == seg_data["role_key"],
-                )
-                .first()
+        # Find role by role_key (always look up)
+        role_key = seg_data.get("role_key", "host")
+        role = (
+            db.query(PodcastRole)
+            .filter(
+                PodcastRole.project_id == podcast_id,
+                PodcastRole.role_key == role_key,
             )
+            .first()
+        )
 
         segment = PodcastSegment(
             script_id=script.id,

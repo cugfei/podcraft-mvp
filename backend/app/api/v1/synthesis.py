@@ -13,7 +13,7 @@ from app.api.v1.auth import get_current_user
 from app.services.synthesis_service import create_synthesis_task, list_tasks
 from app.utils.response import success
 
-router = APIRouter(prefix="/api/v1", tags=["synthesis"])
+router = APIRouter(tags=["synthesis"])
 
 
 class SynthesizeRequest(BaseModel):

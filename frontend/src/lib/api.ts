@@ -250,8 +250,86 @@ export async function checkHealth(): Promise<{ status: string }> {
 export async function getCreditBalance(): Promise<{
   balance: number;
   frozen: number;
+  available: number;
+  total_recharged: number;
+  total_consumed: number;
 }> {
-  return get<{ balance: number; frozen: number }>("/api/credits/balance");
+  return get<{
+    balance: number;
+    frozen: number;
+    available: number;
+    total_recharged: number;
+    total_consumed: number;
+  }>("/api/v1/credits/balance");
+}
+
+/** Get current user's credit ledger (transactions). */
+export async function getMyCreditLedger(params?: {
+  tx_type?: string;
+  skip?: number;
+  limit?: number;
+}): Promise<{ items: CreditTransaction[]; total: number }> {
+  const qs = new URLSearchParams();
+  if (params?.tx_type) qs.set("tx_type", params.tx_type);
+  if (params?.skip !== undefined) qs.set("skip", String(params.skip));
+  if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+  const q = qs.toString();
+  return get<{ items: CreditTransaction[]; total: number }>(
+    `/api/v1/credits/ledger${q ? "?" + q : ""}`
+  );
+}
+
+/** Check if daily login grant is available. */
+export async function getDailyGrantStatus(): Promise<{ granted: boolean; message: string }> {
+  return get<{ granted: boolean; message: string }>("/api/v1/credits/daily-grant-status");
+}
+
+/** Claim daily login grant (50 credits). */
+export async function claimDailyGrant(): Promise<{
+  granted: number;
+  balance: number;
+  message: string;
+}> {
+  return post<{
+    granted: number;
+    balance: number;
+    message: string;
+  }>("/api/v1/credits/daily-grant", {});
+}
+
+/** Recharge with card key. */
+export async function rechargeWithCard(cardKey: string): Promise<{
+  credits_granted: number;
+  balance: number;
+  message: string;
+}> {
+  return post<{
+    credits_granted: number;
+    balance: number;
+    message: string;
+  }>("/api/v1/orders/verify-card", { card_key: cardKey });
+}
+
+/** Get credit plans (packages). */
+export async function getCreditPlans(): Promise<{ id: string; name: string; price: number; credits: number }[]> {
+  const data = await get<{ items: { id: string; name: string; price: number; credits: number }[] }>("/api/v1/orders/plans");
+  return data.items || [];
+}
+
+// ---------------------------------------------------------------------------
+// Types for credits
+// ---------------------------------------------------------------------------
+
+export interface CreditTransaction {
+  id: string;
+  user_id: string;
+  type: string;
+  amount: number;
+  balance_after: number;
+  reference_type?: string;
+  reference_id?: string;
+  description?: string;
+  created_at: string;
 }
 
 // ---------------------------------------------------------------------------

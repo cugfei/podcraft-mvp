@@ -23,9 +23,18 @@ export interface AuthUser {
   status?: string;
 }
 
+export interface CreditBalance {
+  balance: number;
+  frozen: number;
+  available: number;
+  total_recharged: number;
+  total_consumed: number;
+}
+
 interface AuthContextType {
   user: AuthUser | null;
   token: string | null;
+  credits: CreditBalance | null;
   loading: boolean;
   error: string | null;
   login: (username: string, password: string) => Promise<void>;
@@ -38,6 +47,8 @@ interface AuthContextType {
   logout: () => void;
   /** Call this to refresh the access token using stored refresh token. */
   tryRefresh: () => Promise<string | null>;
+  /** Refresh credit balance from backend. */
+  refreshCredits: () => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -56,6 +67,7 @@ const REFRESH_TOKEN_KEY = "refresh_token";
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [credits, setCredits] = useState<CreditBalance | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,6 +77,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     setToken(null);
     setUser(null);
+    setCredits(null);
+  }, []);
+
+  const refreshCredits = useCallback(async () => {
+    try {
+      const data = await getCreditBalance();
+      setCredits({
+        balance: data.balance,
+        frozen: data.frozen,
+        available: data.available,
+        total_recharged: data.total_recharged,
+        total_consumed: data.total_consumed,
+      });
+    } catch {
+      // Silently fail — credits may be unavailable
+    }
   }, []);
 
   const fetchUser = useCallback(async (tk: string) => {
@@ -78,12 +106,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: data.role,
         status: data.status,
       });
+      // Fetch credit balance
+      await refreshCredits();
     } catch {
       clearAuth();
     } finally {
       setLoading(false);
     }
-  }, [clearAuth]);
+  }, [clearAuth, refreshCredits]);
 
   // ---- tryRefresh (called by api.ts auto-refresh) ----
   // IMPORTANT: defined before useEffect that references it (TDZ safety)
@@ -138,6 +168,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: data.email,
         nickname: data.nickname,
       });
+      // Fetch credit balance after login
+      await refreshCredits();
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : "Login failed";
@@ -146,7 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [refreshCredits]);
 
   // ---- register ----
   const register = useCallback(
@@ -168,6 +200,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: res.email,
           nickname: res.nickname,
         });
+        // Fetch credit balance after registration (should be 500)
+        await refreshCredits();
       } catch (err) {
         const message =
           err instanceof ApiError ? err.message : "Registration failed";
@@ -177,7 +211,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       }
     },
-    []
+    [refreshCredits]
   );
 
   // ---- logout ----
@@ -189,12 +223,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value: AuthContextType = {
     user,
     token,
+    credits,
     loading,
     error,
     login,
     register,
     logout,
     tryRefresh,
+    refreshCredits,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

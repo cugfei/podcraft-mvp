@@ -31,7 +31,7 @@ const NAV_ITEMS = [
 export default function TopBar() {
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
-  const { user, logout } = useAuth();
+  const { user, credits, logout } = useAuth();
   const router = useRouter();
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
@@ -129,7 +129,7 @@ export default function TopBar() {
           {user ? (
             <>
               <Chip
-                label="500 积分"
+                label={credits ? `${credits.available} 积分` : "加载中..."}
                 size="small"
                 sx={{
                   display: { xs: "none", sm: "inline-flex" },
@@ -137,7 +137,10 @@ export default function TopBar() {
                   color: "var(--success)",
                   fontWeight: 600,
                   fontSize: "12px",
+                  cursor: "pointer",
+                  "&:hover": { bgcolor: "var(--success-light)", opacity: 0.8 },
                 }}
+                onClick={() => router.push("/credits")}
               />
               <Button
                 onClick={handleMenuOpen}

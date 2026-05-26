@@ -1,0 +1,121 @@
+  + Exception Group Traceback (most recent call last):
+  |   File "C:\Python39\lib\site-packages\starlette\_utils.py", line 87, in collapse_excgroups
+  |     yield
+  |   File "C:\Python39\lib\site-packages\starlette\middleware\base.py", line 193, in __call__
+  |     response_sent.set()
+  |   File "C:\Python39\lib\site-packages\anyio\_backends\_asyncio.py", line 772, in __aexit__
+  |     raise BaseExceptionGroup(
+  | exceptiongroup.ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "C:\Python39\lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    |     await self.app(scope, receive, _send)
+    |   File "C:\Python39\lib\site-packages\starlette\middleware\cors.py", line 83, in __call__
+    |     await self.app(scope, receive, send)
+    |   File "C:\Python39\lib\site-packages\starlette\middleware\base.py", line 193, in __call__
+    |     response_sent.set()
+    |   File "C:\Python39\lib\contextlib.py", line 135, in __exit__
+    |     self.gen.throw(type, value, traceback)
+    |   File "C:\Python39\lib\site-packages\starlette\_utils.py", line 93, in collapse_excgroups
+    |     raise exc
+    |   File "C:\Python39\lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |   File "E:\GIT\tts\backend\app\middleware\logging.py", line 20, in dispatch
+    |     response = await call_next(request)
+    |   File "C:\Python39\lib\site-packages\starlette\middleware\base.py", line 165, in call_next
+    |     raise app_exc
+    |   File "C:\Python39\lib\site-packages\starlette\middleware\base.py", line 151, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "C:\Python39\lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+    |   File "C:\Python39\lib\site-packages\starlette\_exception_handler.py", line 64, in wrapped_app
+    |     raise exc
+    |   File "C:\Python39\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "C:\Python39\lib\site-packages\starlette\routing.py", line 758, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "C:\Python39\lib\site-packages\starlette\routing.py", line 778, in app
+    |     await route.handle(scope, receive, send)
+    |   File "C:\Python39\lib\site-packages\starlette\routing.py", line 299, in handle
+    |     await self.app(scope, receive, send)
+    |   File "C:\Python39\lib\site-packages\starlette\routing.py", line 79, in app
+    |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+    |   File "C:\Python39\lib\site-packages\starlette\_exception_handler.py", line 64, in wrapped_app
+    |     raise exc
+    |   File "C:\Python39\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "C:\Python39\lib\site-packages\starlette\routing.py", line 74, in app
+    |     response = await func(request)
+    |   File "C:\Python39\lib\site-packages\fastapi\routing.py", line 278, in app
+    |     raw_response = await run_endpoint_function(
+    |   File "C:\Python39\lib\site-packages\fastapi\routing.py", line 193, in run_endpoint_function
+    |     return await run_in_threadpool(dependant.call, **values)
+    |   File "C:\Python39\lib\site-packages\starlette\concurrency.py", line 42, in run_in_threadpool
+    |     return await anyio.to_thread.run_sync(func, *args)
+    |   File "C:\Python39\lib\site-packages\anyio\to_thread.py", line 56, in run_sync
+    |     return await get_async_backend().run_sync_in_worker_thread(
+    |   File "C:\Python39\lib\site-packages\anyio\_backends\_asyncio.py", line 2470, in run_sync_in_worker_thread
+    |     return await future
+    |   File "C:\Python39\lib\site-packages\anyio\_backends\_asyncio.py", line 967, in run
+    |     result = context.run(func, *args)
+    |   File "E:\GIT\tts\backend\app\api\v1\voice.py", line 48, in list_voices
+    |     query = db.query(VoicePreset).filter(VoicePreset.is_active == True)
+    | AttributeError: type object 'VoicePreset' has no attribute 'is_active'
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Python39\lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Python39\lib\site-packages\starlette\middleware\cors.py", line 83, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Python39\lib\site-packages\starlette\middleware\base.py", line 193, in __call__
+    response_sent.set()
+  File "C:\Python39\lib\contextlib.py", line 135, in __exit__
+    self.gen.throw(type, value, traceback)
+  File "C:\Python39\lib\site-packages\starlette\_utils.py", line 93, in collapse_excgroups
+    raise exc
+  File "C:\Python39\lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    response = await self.dispatch_func(request, call_next)
+  File "E:\GIT\tts\backend\app\middleware\logging.py", line 20, in dispatch
+    response = await call_next(request)
+  File "C:\Python39\lib\site-packages\starlette\middleware\base.py", line 165, in call_next
+    raise app_exc
+  File "C:\Python39\lib\site-packages\starlette\middleware\base.py", line 151, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Python39\lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "C:\Python39\lib\site-packages\starlette\_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "C:\Python39\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Python39\lib\site-packages\starlette\routing.py", line 758, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Python39\lib\site-packages\starlette\routing.py", line 778, in app
+    await route.handle(scope, receive, send)
+  File "C:\Python39\lib\site-packages\starlette\routing.py", line 299, in handle
+    await self.app(scope, receive, send)
+  File "C:\Python39\lib\site-packages\starlette\routing.py", line 79, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "C:\Python39\lib\site-packages\starlette\_exception_handler.py", line 64, in wrapped_app
+    raise exc
+  File "C:\Python39\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    await app(scope, receive, sender)
+  File "C:\Python39\lib\site-packages\starlette\routing.py", line 74, in app
+    response = await func(request)
+  File "C:\Python39\lib\site-packages\fastapi\routing.py", line 278, in app
+    raw_response = await run_endpoint_function(
+  File "C:\Python39\lib\site-packages\fastapi\routing.py", line 193, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+  File "C:\Python39\lib\site-packages\starlette\concurrency.py", line 42, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func, *args)
+  File "C:\Python39\lib\site-packages\anyio\to_thread.py", line 56, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+  File "C:\Python39\lib\site-packages\anyio\_backends\_asyncio.py", line 2470, in run_sync_in_worker_thread
+    return await future
+  File "C:\Python39\lib\site-packages\anyio\_backends\_asyncio.py", line 967, in run
+    result = context.run(func, *args)
+  File "E:\GIT\tts\backend\app\api\v1\voice.py", line 48, in list_voices
+    query = db.query(VoicePreset).filter(VoicePreset.is_active == True)
+AttributeError: type object 'VoicePreset' has no attribute 'is_active'

@@ -63,12 +63,15 @@ export default function CreatePage() {
   const [voiceA, setVoiceA] = React.useState("xiaoxiao");
   const [voiceB, setVoiceB] = React.useState("yunxi");
   const [duoTemplate, setDuoTemplate] = React.useState("host_expert");
-  const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
   const [balance, setBalance] = React.useState<number | null>(null);
+  const [previewLoading, setPreviewLoading] = React.useState<string | null>(null);
 
   const charCount = inputType === "text" ? text.length : topic.length;
   const estimatedCredits = charCount + 20; // 字数×1 + 脚本生成20积分
+  const insufficientBalance = balance !== null && estimatedCredits > balance;
+  const textOverLimit = charCount > 5000;
 
   // 获取余额
   React.useEffect(() => {
@@ -85,14 +88,37 @@ export default function CreatePage() {
     return () => { cancelled = true; };
   }, []);
 
-  const insufficientBalance = balance !== null && estimatedCredits > balance;
+  // 音色试听（mock：模拟 2 秒播放）
+  const handlePreview = async (voice: string) => {
+    setPreviewLoading(voice);
+    // MVP mock：2 秒后自动结束，后续接入 T-4.7 真实 API
+    setTimeout(() => setPreviewLoading(null), 2000);
+  };
 
   const handleGenerate = async () => {
     setLoading(true);
     setError("");
+    // 简单前端校验
+    if (!topic.trim() && inputType === "topic") {
+      setError("请输入播客主题");
+      setLoading(false);
+      return;
+    }
+    if (!text.trim() && inputType === "text") {
+      setError("请粘贴文档内容");
+      setLoading(false);
+      return;
+    }
+    if (textOverLimit) {
+      setError("文本内容超过 5000 字限制，请删减后重试");
+      setLoading(false);
+      return;
+    }
+
+    // 调用 API 创建项目
     try {
       const project = await createPodcast({
-        title: topic || "Untitled Podcast",
+        title: (topic || text.slice(0, 30) || "Untitled Podcast").trim(),
         mode,
         style,
         target_duration: duration,
@@ -144,6 +170,8 @@ export default function CreatePage() {
           rows={2}
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
+          error={topic.length > 5000}
+          helperText={topic.length > 0 ? `${topic.length}/5000 字` : "请输入播客主题"}
           sx={{ mb: 3 }}
         />
       )}
@@ -156,8 +184,8 @@ export default function CreatePage() {
           rows={6}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          helperText={`${charCount}/5000 字`}
-          error={charCount > 5000}
+          error={textOverLimit}
+          helperText={`${charCount}/5000 字${textOverLimit ? " · 已超过字数限制" : ""}`}
           sx={{ mb: 3 }}
         />
       )}
@@ -170,6 +198,16 @@ export default function CreatePage() {
           onChange={(e) => setUrl(e.target.value)}
           sx={{ mb: 3 }}
         />
+      )}
+
+      {/* 文本长度超限提示 */}
+      {textOverLimit && (
+        <Alert severity="warning" sx={{ mb: 2 }} onClose={() => {
+          if (inputType === "text") setText(text.slice(0, 5000));
+          else setTopic(topic.slice(0, 5000));
+        }}>
+          文本内容已超过 5000 字限制（当前 {charCount} 字），请删减后重试。
+        </Alert>
       )}
 
       <Divider sx={{ my: 3 }} />
@@ -186,26 +224,26 @@ export default function CreatePage() {
                 onClick={() => setMode(m.value)}
                 sx={{
                   cursor: "pointer",
-                  bgcolor: "var(--panel)",
+                  bgcolor: "background.paper",
                   border: "2px solid",
-                  borderColor: mode === m.value ? "var(--brand)" : "var(--line)",
-                  borderRadius: "var(--radius)",
+                  borderColor: mode === m.value ? "primary.main" : "divider",
+                  borderRadius: 3,
                   p: 3,
                   textAlign: "center",
                   transition: "all 0.3s cubic-bezier(0.4,0,0.2,1)",
-                  boxShadow: mode === m.value ? "0 8px 24px rgba(11,11,13,0.15)" : "var(--shadow-sm)",
+                  boxShadow: mode === m.value ? "0 8px 24px rgba(11,11,13,0.15)" : "none",
                   transform: mode === m.value ? "scale(1.03)" : "none",
                   "&:hover": {
                     transform: "translateY(-4px)",
                     boxShadow: "0 12px 24px rgba(0,0,0,0.12)",
-                    borderColor: "var(--brand-3)",
+                    borderColor: "primary.light",
                   },
                 }}
               >
                 <Typography variant="subtitle1" fontWeight={700} sx={{ fontSize: "18px", mb: 0.5 }}>
                   {m.label}
                 </Typography>
-                <Typography variant="caption" sx={{ color: "var(--text-muted)" }}>
+                <Typography variant="caption" color="text.secondary">
                   {m.desc}
                 </Typography>
               </Box>
@@ -278,14 +316,24 @@ export default function CreatePage() {
             <Button
               key={item.voice}
               size="small"
-              variant="outlined"
-              startIcon={<PlayArrowIcon />}
-              onClick={() => alert("音色试听功能开发中")}
+              variant={previewLoading === item.voice ? "contained" : "outlined"}
+              color={previewLoading === item.voice ? "primary" : "inherit"}
+              startIcon={previewLoading === item.voice ? <CircularProgress size={16} color="inherit" /> : <PlayArrowIcon />}
+              disabled={previewLoading !== null && previewLoading !== item.voice}
+              onClick={() => handlePreview(item.voice)}
             >
-              {item.label}: {VOICE_OPTIONS.find(v => v.value === item.voice)?.label}
+              {previewLoading === item.voice ? "播放中..." : item.label}
+              {previewLoading !== item.voice && (
+                <Typography component="span" variant="caption" sx={{ ml: 0.5, color: "text.secondary" }}>
+                  {VOICE_OPTIONS.find(v => v.value === item.voice)?.label.replace(/（.*/, "")}
+                </Typography>
+              )}
             </Button>
           ))}
         </Box>
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+          * 试听功能当前为模拟播放，完整功能将于 T-4.7 接入
+        </Typography>
       </Box>
 
       <Divider sx={{ my: 3 }} />
@@ -355,7 +403,7 @@ export default function CreatePage() {
         size="large"
         fullWidth
         endIcon={loading ? <CircularProgress size={20} color="inherit" /> : <ArrowForwardIcon />}
-        disabled={loading || charCount === 0 || charCount > 5000 || insufficientBalance}
+        disabled={loading || charCount === 0 || textOverLimit || insufficientBalance}
         onClick={handleGenerate}
         sx={{ py: 1.5, fontSize: "1.1rem" }}
       >

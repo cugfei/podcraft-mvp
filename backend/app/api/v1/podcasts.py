@@ -527,9 +527,14 @@ def get_synthesis_status(
     db: Session = Depends(get_session),
 ):
     """Get synthesis task status."""
-    task = get_task_status(db, task_id, current_user.id)
+    task = get_task_status(db, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Verify task belongs to current user
+    if task.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
     return {
         "code": 0,
         "data": {

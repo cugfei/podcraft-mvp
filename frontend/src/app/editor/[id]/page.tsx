@@ -54,7 +54,7 @@ import {
 } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
-// Constants
+// Constants — markers per PRD §7.5
 // ---------------------------------------------------------------------------
 const EMOTION_OPTIONS = [
   { value: "", label: "默认" },
@@ -65,12 +65,28 @@ const EMOTION_OPTIONS = [
   { value: "excited", label: "兴奋" },
 ];
 
-const MARK_TAGS = [
-  { tag: "[音乐]", label: "音乐" },
-  { tag: "[音效]", label: "音效" },
-  { tag: "[停顿:", label: "停顿(ms)", suffix: "]" },
-  { tag: "[加速:", label: "加速", suffix: "]" },
-  { tag: "[角色:", label: "角色切换", suffix: "]" },
+// Pause markers: <#N#> where N = seconds
+const PAUSE_MARKERS = [
+  { tag: "<#0.5#>", label: "短停顿 0.5s" },
+  { tag: "<#1.0#>", label: "中停顿 1.0s" },
+  { tag: "<#2.0#>", label: "长停顿 2.0s" },
+];
+
+// Common multi-pronunciation characters for the selector
+const MULTI_PRONUNCIATION = [
+  { char: "行", readings: ["xíng（行走）", "háng（行业）"] },
+  { char: "乐", readings: ["lè（快乐）", "yuè（音乐）"] },
+  { char: "长", readings: ["cháng（长度）", "zhǎng（生长）"] },
+  { char: "重", readings: ["zhòng（重量）", "chóng（重复）"] },
+  { char: "都", readings: ["dōu（都是）", "dū（首都）"] },
+  { char: "着", readings: ["zhe（看着）", "zháo（着急）", "zhuó（穿着）"] },
+];
+
+const TONE_WORDS = [
+  { tag: "(laughs)", label: "笑声" },
+  { tag: "(sighs)", label: "叹气" },
+  { tag: "(pauses)", label: "停顿" },
+  { tag: "(whispers)", label: "耳语" },
 ];
 
 const AI_OPTIMIZE_PROMPTS = [
@@ -109,6 +125,9 @@ export default function EditorPage() {
   const [error, setError] = React.useState("");
   const [successMsg, setSuccessMsg] = React.useState("");
 
+  // Balance & credit estimation
+  const [balance, setBalance] = React.useState<number | null>(null);
+
   // Editing state
   const [editingSegId, setEditingSegId] = React.useState<string | null>(null);
   const [editing, setEditing] = React.useState<EditingState>({});
@@ -128,15 +147,36 @@ export default function EditorPage() {
   const [aiDialogOpen, setAiDialogOpen] = React.useState(false);
   const [aiSegId, setAiSegId] = React.useState<string | null>(null);
   const [aiPrompt, setAiPrompt] = React.useState("");
+  const [aiCustomPrompt, setAiCustomPrompt] = React.useState("");
   const [aiLoading, setAiLoading] = React.useState(false);
 
   // Mark insert menu
   const [markMenuAnchor, setMarkMenuAnchor] = React.useState<null | HTMLElement>(null);
   const [markTargetSegId, setMarkTargetSegId] = React.useState<string | null>(null);
+  const [markInsertCallback, setMarkInsertCallback] = React.useState<null | ((tag: string) => void)>(null);
+
+  // Multi-pronunciation selector
+  const [multiProDialogOpen, setMultiProDialogOpen] = React.useState(false);
+  const [multiProChar, setMultiProChar] = React.useState("");
+  const [multiProReading, setMultiProReading] = React.useState("");
 
   // Undo/redo (simple client-side)
   const undoStack = React.useRef<Array<{ segs: PodcastSegment[] }>>([]);
   const redoStack = React.useRef<Array<{ segs: PodcastSegment[] }>>([]);
+
+  // -----------------------------------------------------------------------
+  // Computed values
+  // -----------------------------------------------------------------------
+  const totalChars = React.useMemo(() => {
+    if (editingSegId && editing[editingSegId]) {
+      return editing[editingSegId].text.length;
+    }
+    // Return total chars across all segments when not editing
+    return segments.reduce((sum, s) => sum + (s.text?.length || 0), 0);
+  }, [segments, editing, editingSegId]);
+
+  const estimatedCredits = totalChars + 20; // chars×1 + script generation 20
+  const insufficientBalance = balance !== null && estimatedCredits > balance;
 
   // -----------------------------------------------------------------------
   // Data loading
@@ -167,10 +207,21 @@ export default function EditorPage() {
     }
   }, [projectId]);
 
+  // Load balance
+  const loadBalance = React.useCallback(async () => {
+    try {
+      const data = await getCreditBalance();
+      setBalance(data.balance);
+    } catch {
+      setBalance(500); // mock for dev
+    }
+  }, []);
+
   React.useEffect(() => {
     if (!projectId) return;
     loadData();
-  }, [projectId, loadData]);
+    loadBalance();
+  }, [projectId, loadData, loadBalance]);
 
   // -----------------------------------------------------------------------
   // Single segment editing
@@ -209,10 +260,10 @@ export default function EditorPage() {
         pause_after_ms: draft.pause_after_ms,
       });
       setSegments((prev) =>
-        prev.map((s) => (s.id === segId ? { ...s, ...updated } : s))
+        prev.map((s) => (s.id === segId ? { ...s, ...updated, status: "draft" as const } : s))
       );
       setEditingSegId(null);
-      setSuccessMsg("片段已保存");
+      setSuccessMsg("片段已保存（状态：draft）");
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? err.message : "保存失败";
       setError(msg);
@@ -229,19 +280,43 @@ export default function EditorPage() {
   };
 
   // -----------------------------------------------------------------------
-  // Mark insertion (toolbar)
+  // Mark insertion helpers
   // -----------------------------------------------------------------------
-  const insertMark = (segId: string, tag: string) => {
+  const insertMarkToEditing = (segId: string, tag: string) => {
     const draft = editing[segId];
     if (!draft) return;
-    const newText = draft.text + tag;
-    handleEditingChange(segId, "text", newText);
-    setMarkMenuAnchor(null);
+    handleEditingChange(segId, "text", draft.text + tag);
   };
 
-  const insertMarkToNewSeg = () => {
-    setNewSegText((prev) => prev + "[音乐] ");
+  const insertMarkToNewSeg = (tag: string) => {
+    setNewSegText((prev) => prev + tag);
+  };
+
+  const handleMarkSelect = (tag: string) => {
     setMarkMenuAnchor(null);
+    if (markInsertCallback) {
+      markInsertCallback(tag);
+      setMarkInsertCallback(null);
+      return;
+    }
+    if (markTargetSegId) {
+      insertMarkToEditing(markTargetSegId, tag);
+      setMarkTargetSegId(null);
+    } else {
+      insertMarkToNewSeg(tag);
+    }
+  };
+
+  // -----------------------------------------------------------------------
+  // Multi-pronunciation handler
+  // -----------------------------------------------------------------------
+  const handleMultiProConfirm = () => {
+    if (!multiProChar || !multiProReading) return;
+    const tag = `【${multiProChar}(${multiProReading})】`;
+    handleMarkSelect(tag);
+    setMultiProDialogOpen(false);
+    setMultiProChar("");
+    setMultiProReading("");
   };
 
   // -----------------------------------------------------------------------
@@ -258,7 +333,7 @@ export default function EditorPage() {
         emotion: newSegEmotion || undefined,
         pause_after_ms: newSegPause,
       });
-      setSegments((prev) => [...prev, seg]);
+      setSegments((prev) => [...prev, { ...seg, status: "draft" }]);
       setNewSegText("");
       setNewSegEmotion("");
       setNewSegPause(700);
@@ -308,7 +383,7 @@ export default function EditorPage() {
       setSegments((prev) =>
         prev.map((s) => {
           const updated = results.find((r) => r && r.id === s.id);
-          return updated ? { ...s, ...updated } : s;
+          return updated ? { ...s, ...updated, status: "draft" } : s;
         })
       );
       setSelectedIds(new Set());
@@ -373,19 +448,20 @@ export default function EditorPage() {
     if (!aiSegId || !aiPrompt) return;
     setAiLoading(true);
     setError("");
-    // TODO: Replace with real LLM API call
+    const promptToUse = aiCustomPrompt.trim() || aiPrompt;
     try {
       const seg = segments.find((s) => s.id === aiSegId);
       if (!seg) return;
-      // Mock: just append a note
-      const newText = seg.text + "\n\n[AI优化：" + aiPrompt + "]";
+      // Mock: prepend AI-optimized note
+      const newText = `[AI优化：${promptToUse}]\n${seg.text}`;
       const updated = await updateSegment(aiSegId, { text: newText });
       setSegments((prev) =>
-        prev.map((s) => (s.id === aiSegId ? { ...s, ...updated } : s))
+        prev.map((s) => (s.id === aiSegId ? { ...s, ...updated, status: "draft" } : s))
       );
       setAiDialogOpen(false);
       setAiSegId(null);
       setAiPrompt("");
+      setAiCustomPrompt("");
       setSuccessMsg("AI 优化完成（演示模式）");
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? err.message : "AI 优化失败";
@@ -399,6 +475,10 @@ export default function EditorPage() {
   // Synthesize
   // -----------------------------------------------------------------------
   const handleSynthesize = async (segId: string) => {
+    if (insufficientBalance) {
+      setError("余额不足，请充值后再试");
+      return;
+    }
     setError("");
     try {
       await synthesizeSegment(segId);
@@ -483,6 +563,25 @@ export default function EditorPage() {
         </Alert>
       )}
 
+      {/* Balance & Credit Estimation Bar */}
+      <Paper variant="outlined" sx={{ p: 2, mb: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2 }}>
+        <Typography variant="caption" color="text.secondary">
+          字数：<strong>{totalChars}</strong>
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          预计消耗：<strong>{estimatedCredits} 积分</strong>
+        </Typography>
+        <Typography variant="caption" color={insufficientBalance ? "error" : "text.secondary"}>
+          余额：<strong>{balance !== null ? balance : "..."} 积分</strong>
+          {insufficientBalance && " · 余额不足"}
+        </Typography>
+        {insufficientBalance && (
+          <Button size="small" color="error" variant="outlined">
+            去充值
+          </Button>
+        )}
+      </Paper>
+
       <Divider sx={{ mb: 2 }} />
 
       {/* Toolbar */}
@@ -514,45 +613,56 @@ export default function EditorPage() {
             <FormatItalicIcon fontSize="small" />
           </IconButton>
         </Tooltip>
-        <Tooltip title="插入标记">
+        <Tooltip title="插入暂停标记">
           <IconButton
             size="small"
             onClick={(e) => {
               setMarkMenuAnchor(e.currentTarget);
               setMarkTargetSegId(editingSegId);
+              setMarkInsertCallback(null);
             }}
           >
             <FlagIcon fontSize="small" />
           </IconButton>
         </Tooltip>
-        <Menu
-          anchorEl={markMenuAnchor}
-          open={Boolean(markMenuAnchor)}
-          onClose={() => setMarkMenuAnchor(null)}
-        >
-          {MARK_TAGS.map((m) => (
-            <MenuItem
-              key={m.tag}
-              onClick={() => {
-                const targetId = markTargetSegId;
-                if (targetId) {
-                  insertMark(targetId, m.suffix ? m.tag + "0" + m.suffix : m.tag + " ");
-                } else {
-                  insertMarkToNewSeg();
-                }
-                setMarkMenuAnchor(null);
-              }}
-            >
-              {m.label}
-            </MenuItem>
-          ))}
-        </Menu>
+        <Tooltip title="多音字选择器">
+          <IconButton
+            size="small"
+            onClick={() => setMultiProDialogOpen(true)}
+          >
+            <FormatItalicIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
         {selectedIds.size > 0 && (
           <Button size="small" variant="contained" color="warning" onClick={handleBulkDelete}>
             删除选中 ({selectedIds.size})
           </Button>
         )}
       </Paper>
+
+      {/* Mark insertion menu */}
+      <Menu
+        anchorEl={markMenuAnchor}
+        open={Boolean(markMenuAnchor)}
+        onClose={() => { setMarkMenuAnchor(null); setMarkTargetSegId(null); }}
+      >
+        <MenuItem disabled sx={{ fontWeight: 600 }}>暂停标记</MenuItem>
+        {PAUSE_MARKERS.map((m) => (
+          <MenuItem key={m.tag} onClick={() => handleMarkSelect(m.tag)}>
+            {m.label}
+          </MenuItem>
+        ))}
+        <MenuItem disabled sx={{ fontWeight: 600 }}>多音字</MenuItem>
+        <MenuItem onClick={() => { setMultiProDialogOpen(true); setMarkMenuAnchor(null); }}>
+          打开多音字选择器…
+        </MenuItem>
+        <MenuItem disabled sx={{ fontWeight: 600 }}>语气词</MenuItem>
+        {TONE_WORDS.map((t) => (
+          <MenuItem key={t.tag} onClick={() => handleMarkSelect(t.tag)}>
+            {t.label} {t.tag}
+          </MenuItem>
+        ))}
+      </Menu>
 
       {/* Bulk edit panel */}
       {selectedIds.size > 0 && (
@@ -786,7 +896,8 @@ export default function EditorPage() {
                         <IconButton
                           size="small"
                           onClick={() => handleSynthesize(seg.id)}
-                          color="primary"
+                          color={insufficientBalance ? "error" : "primary"}
+                          disabled={insufficientBalance}
                         >
                           <PlayArrowIcon fontSize="small" />
                         </IconButton>
@@ -896,15 +1007,24 @@ export default function EditorPage() {
           <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField
               select
-              label="优化方式"
+              label="优化方式（快捷选择）"
               fullWidth
               value={aiPrompt}
-              onChange={(e) => setAiPrompt(e.target.value)}
+              onChange={(e) => { setAiPrompt(e.target.value); setAiCustomPrompt(""); }}
             >
               {AI_OPTIMIZE_PROMPTS.map((p) => (
                 <MenuItem key={p.value} value={p.value}>{p.label}</MenuItem>
               ))}
             </TextField>
+            <TextField
+              label="自定义指令（可选，填写后优先使用）"
+              fullWidth
+              multiline
+              rows={3}
+              value={aiCustomPrompt}
+              onChange={(e) => { setAiCustomPrompt(e.target.value); setAiPrompt(""); }}
+              placeholder="输入自定义 AI 指令，例如：多用比喻、增加互动感…"
+            />
             <Alert severity="info">
               当前为演示模式。接入 LLM API 后将实现真实 AI 优化。
             </Alert>
@@ -915,9 +1035,52 @@ export default function EditorPage() {
           <Button
             variant="contained"
             onClick={handleAiOptimize}
-            disabled={aiLoading || !aiPrompt}
+            disabled={aiLoading || (!aiPrompt && !aiCustomPrompt.trim())}
           >
             {aiLoading ? "处理中..." : "优化"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Multi-pronunciation Selector Dialog */}
+      <Dialog open={multiProDialogOpen} onClose={() => setMultiProDialogOpen(false)} maxWidth="xs">
+        <DialogTitle>多音字选择器</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              select
+              label="选择多音字"
+              fullWidth
+              value={multiProChar}
+              onChange={(e) => { setMultiProChar(e.target.value); setMultiProReading(""); }}
+            >
+              {MULTI_PRONUNCIATION.map((m) => (
+                <MenuItem key={m.char} value={m.char}>{m.char}</MenuItem>
+              ))}
+            </TextField>
+            {multiProChar && (
+              <TextField
+                select
+                label="选择读音"
+                fullWidth
+                value={multiProReading}
+                onChange={(e) => setMultiProReading(e.target.value)}
+              >
+                {MULTI_PRONUNCIATION.find((m) => m.char === multiProChar)?.readings.map((r) => (
+                  <MenuItem key={r} value={r}>{r}</MenuItem>
+                ))}
+              </TextField>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setMultiProDialogOpen(false)}>取消</Button>
+          <Button
+            variant="contained"
+            onClick={handleMultiProConfirm}
+            disabled={!multiProChar || !multiProReading}
+          >
+            插入标记
           </Button>
         </DialogActions>
       </Dialog>

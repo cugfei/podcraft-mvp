@@ -28,6 +28,14 @@ class SynthesizeRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class SynthesisResponse(BaseModel):
+    """Response for synthesis operations."""
+
+    code: int = 0
+    data: Optional[dict] = None
+    message: str = "ok"
+
+
 @router.get("/synthesis-tasks/{task_id}")
 async def get_synthesis_task(
     task_id: str,

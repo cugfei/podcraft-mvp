@@ -503,11 +503,8 @@ def synthesize_podcast(
         task = create_synthesis_task(
             db=db,
             project_id=podcast_id,
+            user_id=current_user.id,
             task_type=body.task_type,
-            voice_id=body.voice_id,
-            speed=body.speed,
-            pitch=body.pitch,
-            volume=body.volume,
         )
         return {
             "code": 0,

@@ -96,12 +96,18 @@ def register(data: UserRegister, db: Session = Depends(get_session)) -> dict:
     if data.email:
         existing = db.query(User).filter(User.email == data.email).first()
         if existing:
-            return error(409, "Email already registered")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email already registered"
+            )
 
     if data.phone:
         existing = db.query(User).filter(User.phone == data.phone).first()
         if existing:
-            return error(409, "Phone already registered")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Phone already registered"
+            )
 
     # Create user
     user = User(
@@ -117,7 +123,10 @@ def register(data: UserRegister, db: Session = Depends(get_session)) -> dict:
         db.refresh(user)
     except IntegrityError:
         db.rollback()
-        return error(409, "Registration failed — duplicate account")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Registration failed — duplicate account"
+        )
 
     # Create credit account and grant 500 welcome credits
     try:

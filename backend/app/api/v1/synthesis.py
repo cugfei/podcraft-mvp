@@ -10,7 +10,7 @@ from app.database import get_db
 from app.models.synthesis_task import SynthesisTask
 from app.models.user import User
 from app.api.v1.auth import get_current_user
-from app.services.synthesis_service import create_synthesis_task, list_tasks
+from app.services.synthesis_service import create_synthesis_task, list_tasks, get_task_status
 from app.utils.response import success
 
 router = APIRouter(tags=["synthesis"])
@@ -20,6 +20,14 @@ class SynthesizeRequest(BaseModel):
     """Request body for starting synthesis."""
 
     task_type: str = "full"  # full / segment
+
+
+class SynthesisResponse(BaseModel):
+    """Response for synthesis operations."""
+
+    code: int = 0
+    data: Optional[dict] = None
+    message: str = "ok"
 
 
 # ---------------------------------------------------------------------------
@@ -34,7 +42,7 @@ async def get_synthesis_task(
     db: Session = Depends(get_db),
 ) -> SynthesisResponse:
     """Return the current status of a background synthesis task."""
-    task = db.query(SynthesisTask).filter(SynthesisTask.id == task_id).first()
+    task = get_task_status(db, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Synthesis task not found")
 

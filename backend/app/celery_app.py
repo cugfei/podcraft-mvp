@@ -32,6 +32,21 @@ celery_app.conf.update(
     task_retry_max_retries=3,          # max 3 retries total
     task_soft_time_limit=600,          # 10 min soft timeout
     task_time_limit=900,               # 15 min hard timeout
+    # ------------------------------------------------------------------
+    # Beat schedule — periodic cleanup tasks (T-5.6)
+    # ------------------------------------------------------------------
+    beat_schedule={
+        "cleanup-expired-audio-assets": {
+            "task": "cleanup_expired_audio_assets",
+            "schedule": 86400.0,          # run every 24 hours
+            "options": {"queue": "cleanup"},
+        },
+        "cleanup-orphaned-audio-files": {
+            "task": "cleanup_orphaned_audio_files",
+            "schedule": 86400.0,          # run every 24 hours
+            "options": {"queue": "cleanup"},
+        },
+    },
 )
 
 # Autodiscover tasks in the tasks package

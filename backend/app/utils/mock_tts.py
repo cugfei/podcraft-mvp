@@ -6,7 +6,7 @@ In production this will be replaced by real TTS Provider implementations.
 import io
 import wave
 import struct
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -85,6 +85,7 @@ def mock_synthesize(
         file_size=file_size,
         url=relative_url,
         version=1,
+        expires_at=datetime.now() + timedelta(days=30),  # T-5.6: 30-day lifecycle
     )
     db.add(asset)
     db.flush()  # get ID

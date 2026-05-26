@@ -45,7 +45,7 @@ def list_voices(
     Return preset voice list.
     Optional filters: language, gender.
     """
-    query = db.query(VoicePreset).filter(VoicePreset.is_active == True)
+    query = db.query(VoicePreset).filter(VoicePreset.status == "active")
 
     if language:
         query = query.filter(VoicePreset.language == language)

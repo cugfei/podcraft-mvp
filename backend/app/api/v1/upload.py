@@ -14,7 +14,7 @@ from app.models.audio_asset import AudioAsset
 from app.utils.response import success, error
 
 settings = get_settings()
-router = APIRouter(prefix="/api/upload", tags=["upload"])
+router = APIRouter(prefix="/upload", tags=["upload"])
 security = HTTPBearer(auto_error=False)
 
 

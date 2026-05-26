@@ -16,7 +16,7 @@ from app.models.user import User
 from app.models.podcast import PodcastProject, PodcastScript, PodcastRole
 from app.models.segment import PodcastSegment
 
-router = APIRouter()
+router = APIRouter(prefix="/segments", tags=["segments"])
 security = HTTPBearer(auto_error=False)
 
 # ---------------------------------------------------------------------------

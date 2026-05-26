@@ -114,11 +114,11 @@ async def global_exception_handler(
 # Routers
 # ---------------------------------------------------------------------------
 app.include_router(health_router, prefix="/api")
-app.include_router(synthesis_router, prefix="/api")
+app.include_router(synthesis_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="")
-app.include_router(podcasts_router, prefix="/api/podcasts")
-app.include_router(segments_router, prefix="/api")
-app.include_router(upload_router, prefix="/api")
+app.include_router(podcasts_router, prefix="/api/v1")
+app.include_router(segments_router, prefix="/api/v1")
+app.include_router(upload_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="")
 app.include_router(debug_auth_router, prefix="")
 

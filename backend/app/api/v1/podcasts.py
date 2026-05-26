@@ -10,7 +10,7 @@ from app.core.security import get_current_user
 from app.models.user import User
 from app.models.podcast import PodcastProject, PodcastScript, PodcastRole
 
-router = APIRouter()
+router = APIRouter(prefix="/podcasts", tags=["podcasts"])
 
 
 # ---------------------------------------------------------------------------
@@ -157,7 +157,7 @@ def create_podcast(
     db.add_all(roles)
     db.commit()
     db.refresh(project)
-    return {"code": 0, "data": project.to_dict(deep=True), "message": "ok"}
+    return {"code": 0, "data": project.to_dict(), "message": "ok"}
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +179,7 @@ def get_podcast(
     )
     if not project:
         raise HTTPException(status_code=404, detail="Podcast not found")
-    return {"code": 0, "data": project.to_dict(deep=True), "message": "ok"}
+    return {"code": 0, "data": project.to_dict(), "message": "ok"}
 
 
 # ---------------------------------------------------------------------------

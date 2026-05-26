@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from app.database import get_db
 from app.utils.response import success
 
-router = APIRouter(tags=["synthesis"])
+router = APIRouter(prefix="/synthesis-tasks", tags=["synthesis"])
 
 
 @router.get("/synthesis-tasks/{task_id}")

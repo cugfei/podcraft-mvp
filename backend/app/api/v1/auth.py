@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import get_session
+from app.models.credit import CreditAccount
 from app.models.user import User
 from app.schemas.auth import UserLogin, UserMeResponse, UserRegister, TokenResponse
 from app.core.security import (
@@ -19,6 +20,7 @@ from app.core.security import (
     verify_password,
 )
 from app.utils.response import success, error
+from app.services.credit_service import grant, _get_or_create_account
 
 settings = get_settings()
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -116,6 +118,24 @@ def register(data: UserRegister, db: Session = Depends(get_session)) -> dict:
     except IntegrityError:
         db.rollback()
         return error(409, "Registration failed — duplicate account")
+
+    # Create credit account and grant 500 welcome credits
+    try:
+        credit_account = CreditAccount(
+            user_id=user.id,
+            balance=0,
+            frozen=0,
+            total_recharged=0,
+            total_consumed=0,
+            version=0,
+        )
+        db.add(credit_account)
+        db.commit()
+        # Grant 500 welcome credits
+        grant(db, user.id, 500, "注册赠送")
+    except Exception:
+        # Don't fail registration if credit init fails
+        db.rollback()
 
     # Issue tokens
     access_token = create_access_token(user.id)

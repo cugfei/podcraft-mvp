@@ -22,7 +22,7 @@ from app.services.analytics_service import (
 from app.utils.response import success
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
+router = APIRouter(tags=["analytics"])
 
 
 # --- Request/Response Models ---
@@ -49,7 +49,7 @@ class EventResponse(BaseModel):
 # --- User Endpoints ---
 
 
-@router.post("/track")
+@router.post("/analytics/track")
 async def track_event(
     body: TrackEventRequest,
     db: Session = Depends(get_db),
@@ -72,7 +72,7 @@ async def track_event(
     )
 
 
-@router.get("/my-events")
+@router.get("/analytics/my-events")
 async def get_my_events(
     event_type: Optional[str] = Query(None, description="Filter by event type"),
     limit: int = Query(100, ge=1, le=500),
@@ -96,7 +96,7 @@ async def get_my_events(
     )
 
 
-@router.get("/my-activity")
+@router.get("/analytics/my-activity")
 async def get_my_activity(
     days: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
@@ -140,7 +140,7 @@ async def get_my_activity(
 # --- Admin Endpoints ---
 
 
-@router.get("/admin/events")
+@router.get("/analytics/admin/events")
 async def admin_get_events(
     user_id: Optional[str] = Query(None),
     event_type: Optional[str] = Query(None),
@@ -173,7 +173,7 @@ async def admin_get_events(
     )
 
 
-@router.get("/admin/stats")
+@router.get("/analytics/admin/stats")
 async def admin_get_stats(
     event_type: Optional[str] = Query(None),
     start_date: Optional[datetime] = Query(None),
@@ -198,7 +198,7 @@ async def admin_get_stats(
     )
 
 
-@router.get("/admin/dashboard")
+@router.get("/analytics/admin/dashboard")
 async def admin_get_dashboard(
     db: Session = Depends(get_db),
     _admin: User = Depends(get_current_admin),

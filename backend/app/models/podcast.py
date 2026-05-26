@@ -74,6 +74,21 @@ class PodcastProject(Base):
         post_update=True,
     )
 
+    def to_dict(self) -> dict:
+        """Serialize to dict (safe for JSON)."""
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "title": self.title,
+            "mode": self.mode,
+            "style": self.style,
+            "target_duration": self.target_duration,
+            "status": self.status,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "final_audio_asset": self.final_audio_asset.to_dict() if self.final_audio_asset else None,
+        }
+
     def __repr__(self) -> str:
         return (
             f"<PodcastProject(id={self.id!r}, title={self.title!r}, "
@@ -148,6 +163,21 @@ class PodcastRole(Base):
         back_populates="role",
         cascade="all, delete-orphan",
     )
+
+    def to_dict(self) -> dict:
+        """Serialize to dict (safe for JSON)."""
+        return {
+            "id": self.id,
+            "project_id": self.project_id,
+            "role_key": self.role_key,
+            "name": self.name,
+            "persona": self.persona,
+            "voice_id": self.voice_id,
+            "speed": float(self.speed) if self.speed is not None else 1.0,
+            "pitch": float(self.pitch) if self.pitch is not None else 0.0,
+            "volume": float(self.volume) if self.volume is not None else 1.0,
+            "color": self.color,
+        }
 
     def __repr__(self) -> str:
         return (

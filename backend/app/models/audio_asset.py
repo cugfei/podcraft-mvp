@@ -55,6 +55,24 @@ class AudioAsset(Base):
         post_update=True,
     )
 
+
+    def to_dict(self) -> dict:
+        """Serialize to dict (safe for JSON)."""
+        return {
+            "id": self.id,
+            "project_id": self.project_id,
+            "segment_id": self.segment_id,
+            "type": self.type,
+            "format": self.format,
+            "duration_ms": self.duration_ms,
+            "duration_seconds": self.duration_ms / 1000.0 if self.duration_ms else None,
+            "file_size": self.file_size,
+            "loudness_lufs": float(self.loudness_lufs) if self.loudness_lufs is not None else None,
+            "version": self.version,
+            "url": self.url,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
     def __repr__(self) -> str:
         return (
             f"<AudioAsset(id={self.id!r}, type={self.type!r}, "

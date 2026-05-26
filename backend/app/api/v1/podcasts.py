@@ -3,7 +3,7 @@
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_session
 from app.core.security import get_current_user
@@ -68,7 +68,8 @@ def list_podcasts(
         query = query.filter(PodcastProject.status == status)
     total = query.count()
     items = (
-        query.order_by(PodcastProject.updated_at.desc())
+        query.options(joinedload(PodcastProject.final_audio_asset))
+        .order_by(PodcastProject.updated_at.desc())
         .offset(skip)
         .limit(limit)
         .all()

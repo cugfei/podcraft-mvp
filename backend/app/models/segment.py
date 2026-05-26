@@ -58,6 +58,26 @@ class PodcastSegment(Base):
         post_update=True,
     )
 
+    def to_dict(self) -> dict:
+        """Serialize to dict (safe for JSON)."""
+        return {
+            "id": self.id,
+            "script_id": self.script_id,
+            "role_id": self.role_id,
+            "sort_order": self.sort_order,
+            "text": self.text,
+            "source_text_hash": self.source_text_hash,
+            "char_count": self.char_count,
+            "emotion": self.emotion,
+            "pause_after_ms": self.pause_after_ms,
+            "status": self.status,
+            "error_message": self.error_message,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "audio_asset": self.audio_asset.to_dict() if self.audio_asset else None,
+            "role": {"id": self.role.id, "name": self.role.name, "color": self.role.color} if self.role else None,
+        }
+
     def __repr__(self) -> str:
         return (
             f"<PodcastSegment(id={self.id!r}, sort_order={self.sort_order}, "

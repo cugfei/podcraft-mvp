@@ -305,7 +305,13 @@ export interface PodcastProject {
   updated_at: string;
   script?: PodcastScript;
   roles?: PodcastRole[];
-  final_audio_asset?: { id: string; file_path: string; duration_seconds: number };
+  final_audio_asset?: {
+    id: string;
+    url?: string;
+    duration_seconds?: number;
+    duration_ms?: number;
+    file_size?: number;
+  };
 }
 
 export interface CreatePodcastRequest {

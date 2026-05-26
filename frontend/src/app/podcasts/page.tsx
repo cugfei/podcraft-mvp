@@ -20,7 +20,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import CircularProgress from "@mui/material/CircularProgress";
 import Alert from "@mui/material/Alert";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { listPodcasts, deletePodcast, ApiError, PodcastProject } from "@/lib/api";
+import { listPodcasts, deletePodcast, getAudioSrc, ApiError, PodcastProject } from "@/lib/api";
 
 const statusMap: Record<string, { label: string; color: "default" | "success" | "error" | "warning" }> = {
   completed: { label: "已完成", color: "success" },
@@ -72,21 +72,36 @@ export default function PodcastsPage() {
   };
 
   const handlePlay = (p: PodcastProject) => {
-    if (!p.final_audio_asset) {
+    const asset = p.final_audio_asset;
+    if (!asset?.url) {
       alert("暂无音频文件");
       return;
     }
-    // TODO: 后端需要实现音频下载端点
-    alert("播放功能开发中，后续版本开放");
+    const url = getAudioSrc(asset.url);
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (playingId === p.id) {
+      audio.pause();
+      setPlayingId(null);
+    } else {
+      audio.src = url;
+      audio.play().catch(() => {});
+      setPlayingId(p.id);
+    }
   };
 
   const handleDownload = (p: PodcastProject) => {
-    if (!p.final_audio_asset) {
+    const asset = p.final_audio_asset;
+    if (!asset?.url) {
       alert("暂无音频文件");
       return;
     }
-    // TODO: 后端需要实现音频下载端点
-    alert("下载功能开发中，后续版本开放");
+    const url = getAudioSrc(asset.url);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${p.title || "podcast"}.mp3`;
+    a.click();
   };
 
   return (

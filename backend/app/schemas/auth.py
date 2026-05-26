@@ -36,9 +36,10 @@ class UserLogin(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    """JWT token response."""
+    """JWT token response (access + refresh)."""
 
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     user_id: str
     email: Optional[str] = None

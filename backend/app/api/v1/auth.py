@@ -1,4 +1,4 @@
-"""Authentication routes — register, login, get current user."""
+"""Authentication routes — register, login, refresh, get current user."""
 
 from typing import Dict, Optional
 
@@ -13,6 +13,7 @@ from app.models.user import User
 from app.schemas.auth import UserLogin, UserMeResponse, UserRegister, TokenResponse
 from app.core.security import (
     create_access_token,
+    create_refresh_token,
     decode_access_token,
     get_password_hash,
     verify_password,
@@ -21,7 +22,6 @@ from app.utils.response import success, error
 
 settings = get_settings()
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
-
 # Bearer token extractor
 security = HTTPBearer(auto_error=False)
 
@@ -36,7 +36,6 @@ def get_current_user(
     db: Session = Depends(get_session),
 ) -> User:
     """Dependency that returns the authenticated ``User`` or raises 401."""
-
     if creds is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -84,11 +83,10 @@ def get_current_user(
 
 @router.post("/register", response_model=dict)
 def register(data: UserRegister, db: Session = Depends(get_session)) -> dict:
-    """Register a new user and return a JWT token.
+    """Register a new user and return JWT tokens.
 
     At least one of *email* or *phone* must be provided.
     """
-
     if not data.email and not data.phone:
         return error(400, "Email or phone is required")
 
@@ -119,11 +117,13 @@ def register(data: UserRegister, db: Session = Depends(get_session)) -> dict:
         db.rollback()
         return error(409, "Registration failed — duplicate account")
 
-    # Issue token
+    # Issue tokens
     access_token = create_access_token(user.id)
+    refresh_token = create_refresh_token(user.id)
     return success(
         TokenResponse(
             access_token=access_token,
+            refresh_token=refresh_token,
             user_id=user.id,
             email=user.email,
             nickname=user.nickname,
@@ -133,8 +133,7 @@ def register(data: UserRegister, db: Session = Depends(get_session)) -> dict:
 
 @router.post("/login", response_model=dict)
 def login(data: UserLogin, db: Session = Depends(get_session)) -> dict:
-    """Authenticate with email/phone + password and return a JWT token."""
-
+    """Authenticate with email/phone + password and return JWT tokens."""
     # Find user by email or phone
     user: Optional[User] = None
     if "@" in data.username:
@@ -151,11 +150,13 @@ def login(data: UserLogin, db: Session = Depends(get_session)) -> dict:
     if user.status != "active":
         return error(403, "Account is disabled")
 
-    # Issue token
+    # Issue tokens
     access_token = create_access_token(user.id)
+    refresh_token = create_refresh_token(user.id)
     return success(
         TokenResponse(
             access_token=access_token,
+            refresh_token=refresh_token,
             user_id=user.id,
             email=user.email,
             nickname=user.nickname,
@@ -163,10 +164,38 @@ def login(data: UserLogin, db: Session = Depends(get_session)) -> dict:
     )
 
 
+@router.post("/refresh", response_model=dict)
+def refresh_token(data: Dict[str, str], db: Session = Depends(get_session)) -> dict:
+    """Exchange a refresh token for a new access token.
+
+    Request body: ``{"refresh_token": "<jwt>"}``
+    """
+    raw = data.get("refresh_token", "")
+    if not raw:
+        return error(400, "refresh_token is required")
+
+    payload = decode_access_token(raw)
+    if payload is None or payload.get("type") != "refresh":
+        return error(401, "Invalid refresh token")
+
+    user_id = payload.get("sub")
+    if user_id is None:
+        return error(401, "Invalid refresh token")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None or user.status != "active":
+        return error(401, "User not found or disabled")
+
+    new_access_token = create_access_token(user.id)
+    return success({
+        "access_token": new_access_token,
+        "token_type": "bearer",
+    })
+
+
 @router.get("/me", response_model=dict)
 def get_me(current_user: User = Depends(get_current_user)) -> dict:
     """Get current authenticated user info."""
-
     return success(
         UserMeResponse(
             id=current_user.id,

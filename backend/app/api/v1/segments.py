@@ -1,8 +1,9 @@
-"""Podcast segment CRUD + reorder routes."""
+"""Podcast segment CRUD + reorder routes — real JWT auth."""
 
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 from app.database import get_session
@@ -12,6 +13,64 @@ from app.models.podcast import PodcastProject, PodcastScript, PodcastRole
 from app.models.segment import PodcastSegment
 
 router = APIRouter()
+security = HTTPBearer(auto_error=False)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def get_current_active_user(
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: Session = Depends(get_session),
+) -> User:
+    user = get_current_user(creds, db)
+    return user
+
+
+def _get_project(project_id: str, user: User, db: Session) -> PodcastProject:
+    project = (
+        db.query(PodcastProject)
+        .filter(PodcastProject.id == project_id, PodcastProject.user_id == user.id)
+        .first()
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Podcast not found")
+    return project
+
+
+def _get_script(project_id: str, db: Session) -> PodcastScript:
+    script = (
+        db.query(PodcastScript)
+        .filter(PodcastScript.project_id == project_id)
+        .first()
+    )
+    if not script:
+        from datetime import datetime
+        now = datetime.utcnow()
+        script = PodcastScript(
+            project_id=project_id,
+            status="draft",
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(script)
+        db.flush()
+    return script
+
+
+def _get_role(project_id: str, role_key: str, db: Session) -> PodcastRole:
+    role = (
+        db.query(PodcastRole)
+        .filter(
+            PodcastRole.project_id == project_id,
+            PodcastRole.role_key == role_key,
+        )
+        .first()
+    )
+    if not role:
+        raise HTTPException(status_code=404, detail=f"Role '{role_key}' not found")
+    return role
 
 
 # ---------------------------------------------------------------------------
@@ -39,62 +98,15 @@ class ReorderRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-def _get_project(project_id: str, user: User, db: Session) -> PodcastProject:
-    project = (
-        db.query(PodcastProject)
-        .filter(PodcastProject.id == project_id, PodcastProject.user_id == user.id)
-        .first()
-    )
-    if not project:
-        raise HTTPException(status_code=404, detail="Podcast not found")
-    return project
-
-
-def _get_script(project_id: str, db: Session) -> PodcastScript:
-    script = (
-        db.query(PodcastScript)
-        .filter(PodcastScript.project_id == project_id)
-        .first()
-    )
-    if not script:
-        from datetime import datetime
-        script = PodcastScript(
-            project_id=project_id,
-            status="draft",
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
-        )
-        db.add(script)
-        db.flush()
-    return script
-
-
-def _get_role(project_id: str, role_key: str, db: Session) -> PodcastRole:
-    role = (
-        db.query(PodcastRole)
-        .filter(
-            PodcastRole.project_id == project_id,
-            PodcastRole.role_key == role_key,
-        )
-        .first()
-    )
-    if not role:
-        raise HTTPException(status_code=404, detail=f"Role '{role_key}' not found")
-    return role
-
-
-# ---------------------------------------------------------------------------
 # List segments
 # ---------------------------------------------------------------------------
 @router.get("/podcasts/{project_id}/segments")
 def list_segments(
     project_id: str,
+    current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
 ):
-    project = _get_project(project_id, user, db)
+    project = _get_project(project_id, current_user, db)
     script = _get_script(project_id, db)
     segments = (
         db.query(PodcastSegment)
@@ -116,10 +128,10 @@ def list_segments(
 def create_segment(
     project_id: str,
     body: SegmentCreate,
+    current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
 ):
-    project = _get_project(project_id, user, db)
+    project = _get_project(project_id, current_user, db)
     script = _get_script(project_id, db)
     role = _get_role(project_id, body.role_key, db)
 
@@ -159,14 +171,17 @@ def create_segment(
 def update_segment(
     segment_id: str,
     body: SegmentUpdate,
+    current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
 ):
     seg = (
         db.query(PodcastSegment)
         .join(PodcastScript)
         .join(PodcastProject)
-        .filter(PodcastSegment.id == segment_id, PodcastProject.user_id == user.id)
+        .filter(
+            PodcastSegment.id == segment_id,
+            PodcastProject.user_id == current_user.id,
+        )
         .first()
     )
     if not seg:
@@ -195,14 +210,17 @@ def update_segment(
 @router.delete("/segments/{segment_id}")
 def delete_segment(
     segment_id: str,
+    current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
 ):
     seg = (
         db.query(PodcastSegment)
         .join(PodcastScript)
         .join(PodcastProject)
-        .filter(PodcastSegment.id == segment_id, PodcastProject.user_id == user.id)
+        .filter(
+            PodcastSegment.id == segment_id,
+            PodcastProject.user_id == current_user.id,
+        )
         .first()
     )
     if not seg:
@@ -232,10 +250,10 @@ def delete_segment(
 def reorder_segments(
     project_id: str,
     body: ReorderRequest,
+    current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
 ):
-    project = _get_project(project_id, user, db)
+    project = _get_project(project_id, current_user, db)
     script = _get_script(project_id, db)
 
     # Validate all segment IDs belong to this script
@@ -281,15 +299,18 @@ def reorder_segments(
 @router.post("/segments/{segment_id}/synthesize")
 def synthesize_segment(
     segment_id: str,
+    current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
 ):
     """Queue a single segment for TTS synthesis (preview)."""
     seg = (
         db.query(PodcastSegment)
         .join(PodcastScript)
         .join(PodcastProject)
-        .filter(PodcastSegment.id == segment_id, PodcastProject.user_id == user.id)
+        .filter(
+            PodcastSegment.id == segment_id,
+            PodcastProject.user_id == current_user.id,
+        )
         .first()
     )
     if not seg:

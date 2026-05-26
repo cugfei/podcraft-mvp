@@ -12,6 +12,7 @@ settings = get_settings()
 connect_args = {}
 if settings.DATABASE_URL.startswith("sqlite"):
     connect_args["check_same_thread"] = False
+    connect_args["timeout"] = 30  # wait up to 30s for lock to release
 
 engine = create_engine(
     settings.DATABASE_URL,

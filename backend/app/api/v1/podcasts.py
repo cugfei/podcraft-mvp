@@ -1,4 +1,4 @@
-"""Podcast project CRUD routes."""
+"""Podcast project CRUD routes — real JWT auth."""
 
 from typing import Any, Dict, List, Optional
 
@@ -53,15 +53,17 @@ class ScriptUpdate(BaseModel):
 # ---------------------------------------------------------------------------
 # List podcasts
 # ---------------------------------------------------------------------------
-@router.get("/list")  # 使用 /list 避免与 /{project_id} 冲突
+@router.get("/list")
 def list_podcasts(
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
     status: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
 ):
-    query = db.query(PodcastProject).filter(PodcastProject.user_id == user.id)
+    query = db.query(PodcastProject).filter(
+        PodcastProject.user_id == current_user.id
+    )
     if status:
         query = query.filter(PodcastProject.status == status)
     total = query.count()
@@ -89,14 +91,14 @@ def list_podcasts(
 @router.post("/")
 def create_podcast(
     body: PodcastCreate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
 ):
     from datetime import datetime
     now = datetime.utcnow()
 
     project = PodcastProject(
-        user_id=user.id,
+        user_id=current_user.id,
         title=body.title,
         mode=body.mode,
         style=body.style,
@@ -106,7 +108,7 @@ def create_podcast(
         updated_at=now,
     )
     db.add(project)
-    db.flush()  # get project.id
+    db.flush()
 
     # Auto-create script
     script = PodcastScript(
@@ -128,8 +130,6 @@ def create_podcast(
                 pitch=0.0,
                 volume=1.0,
                 color="#10b981",
-                created_at=now,
-                updated_at=now,
             ),
             PodcastRole(
                 project_id=project.id,
@@ -139,8 +139,6 @@ def create_podcast(
                 pitch=0.0,
                 volume=1.0,
                 color="#3b82f6",
-                created_at=now,
-                updated_at=now,
             ),
         ]
     else:
@@ -153,14 +151,13 @@ def create_podcast(
                 pitch=0.0,
                 volume=1.0,
                 color="#10b981",
-                created_at=now,
-                updated_at=now,
             ),
         ]
     db.add_all(roles)
     db.commit()
     db.refresh(project)
-    return {"code": 0, "data": project.to_dict(), "message": "ok"}
+    return {"code": 0, "data": project.to_dict(deep=True), "message": "ok"}
+
 
 # ---------------------------------------------------------------------------
 # Get podcast detail
@@ -168,12 +165,15 @@ def create_podcast(
 @router.get("/{project_id}")
 def get_podcast(
     project_id: str,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
 ):
     project = (
         db.query(PodcastProject)
-        .filter(PodcastProject.id == project_id, PodcastProject.user_id == user.id)
+        .filter(
+            PodcastProject.id == project_id,
+            PodcastProject.user_id == current_user.id,
+        )
         .first()
     )
     if not project:
@@ -188,12 +188,15 @@ def get_podcast(
 def update_podcast(
     project_id: str,
     body: PodcastUpdate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
 ):
     project = (
         db.query(PodcastProject)
-        .filter(PodcastProject.id == project_id, PodcastProject.user_id == user.id)
+        .filter(
+            PodcastProject.id == project_id,
+            PodcastProject.user_id == current_user.id,
+        )
         .first()
     )
     if not project:
@@ -222,12 +225,15 @@ def update_podcast(
 @router.delete("/{project_id}")
 def delete_podcast(
     project_id: str,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
 ):
     project = (
         db.query(PodcastProject)
-        .filter(PodcastProject.id == project_id, PodcastProject.user_id == user.id)
+        .filter(
+            PodcastProject.id == project_id,
+            PodcastProject.user_id == current_user.id,
+        )
         .first()
     )
     if not project:
@@ -238,18 +244,21 @@ def delete_podcast(
 
 
 # ---------------------------------------------------------------------------
-# Update script content
+# Update script
 # ---------------------------------------------------------------------------
 @router.put("/{project_id}/script")
 def update_script(
     project_id: str,
     body: ScriptUpdate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_session),
-    user: User = Depends(get_current_user),
 ):
     project = (
         db.query(PodcastProject)
-        .filter(PodcastProject.id == project_id, PodcastProject.user_id == user.id)
+        .filter(
+            PodcastProject.id == project_id,
+            PodcastProject.user_id == current_user.id,
+        )
         .first()
     )
     if not project:
@@ -258,11 +267,12 @@ def update_script(
     script = project.script
     if not script:
         from datetime import datetime
+        now = datetime.utcnow()
         script = PodcastScript(
             project_id=project.id,
             status="draft",
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now,
+            updated_at=now,
         )
         db.add(script)
         db.flush()
@@ -277,104 +287,3 @@ def update_script(
 
     db.commit()
     return {"code": 0, "data": script.to_dict(), "message": "ok"}
-
-
-# ---------------------------------------------------------------------------
-# Helper: to_dict for models
-# ---------------------------------------------------------------------------
-def _add_to_dict_methods():
-    """Monkey-patch to_dict for podcast models if not present."""
-    from app.models.podcast import PodcastProject as PP, PodcastScript as PS, PodcastRole as PR
-    from app.models.segment import PodcastSegment as PSeg
-    from app.models.audio_asset import AudioAsset
-
-    if hasattr(PP, "to_dict"):
-        return
-
-    def _audio_to_dict(self):
-        return {
-            "id": self.id,
-            "filename": self.filename,
-            "file_path": self.file_path,
-            "file_size": self.file_size,
-            "mime_type": self.mime_type,
-            "duration_seconds": self.duration_seconds,
-        }
-
-    AudioAsset.to_dict = _audio_to_dict
-
-    def _seg_to_dict(self, deep=False):
-        d: Dict[str, Any] = {
-            "id": self.id,
-            "script_id": self.script_id,
-            "role_id": self.role_id,
-            "sort_order": self.sort_order,
-            "text": self.text,
-            "emotion": self.emotion,
-            "pause_after_ms": self.pause_after_ms,
-            "status": self.status,
-            "error_message": self.error_message,
-        }
-        if deep and self.role:
-            d["role"] = {"id": self.role.id, "name": self.role.name, "color": self.role.color}
-        if deep and self.audio_asset:
-            d["audio_asset"] = self.audio_asset.to_dict()
-        return d
-
-    PSeg.to_dict = _seg_to_dict
-
-    def _role_to_dict(self, deep=False):
-        d: Dict[str, Any] = {
-            "id": self.id,
-            "role_key": self.role_key,
-            "name": self.name,
-            "persona": self.persona,
-            "voice_id": self.voice_id,
-            "speed": float(self.speed) if self.speed else 1.0,
-            "pitch": float(self.pitch) if self.pitch else 0.0,
-            "volume": float(self.volume) if self.volume else 1.0,
-            "color": self.color,
-        }
-        if deep and self.voice_preset:
-            d["voice_preset"] = {"id": self.voice_preset.id, "name": self.voice_preset.name}
-        return d
-
-    PR.to_dict = _role_to_dict
-
-    def _script_to_dict(self, deep=False):
-        d: Dict[str, Any] = {
-            "id": self.id,
-            "project_id": self.project_id,
-            "outline": self.outline,
-            "script_content": self.script_content,
-            "status": self.status,
-        }
-        if deep and self.segments:
-            d["segments"] = [s.to_dict(deep=True) for s in self.segments]
-        return d
-
-    PS.to_dict = _script_to_dict
-
-    def _pp_to_dict(self, deep=False):
-        d: Dict[str, Any] = {
-            "id": self.id,
-            "user_id": self.user_id,
-            "title": self.title,
-            "mode": self.mode,
-            "style": self.style,
-            "target_duration": self.target_duration,
-            "status": self.status,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-        }
-        if deep:
-            d["script"] = self.script.to_dict(deep=True) if self.script else None
-            d["roles"] = [r.to_dict(deep=True) for r in self.roles]
-            if self.final_audio_asset:
-                d["final_audio_asset"] = self.final_audio_asset.to_dict()
-        return d
-
-    PP.to_dict = _pp_to_dict
-
-
-_add_to_dict_methods()

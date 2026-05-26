@@ -1,17 +1,39 @@
 /**
  * API utility functions for communicating with the PodCraft backend.
+ *
+ * Includes auto-refresh of access token on 401 responses.
  */
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-/** Unified API response shape returned by the backend. */
+// ---------------------------------------------------------------------------
+// Auth callbacks (injected by AuthContext)
+// ---------------------------------------------------------------------------
+type RefreshFn = () => Promise<string | null>;
+type LogoutFn = () => void;
+
+let _refreshFn: RefreshFn | null = null;
+let _logoutFn: LogoutFn | null = null;
+
+/** Called by AuthContext on mount to wire refresh/logout callbacks. */
+export function setAuthCallbacks(opts: {
+  onRefresh: RefreshFn;
+  onLogout: LogoutFn;
+}) {
+  _refreshFn = opts.onRefresh;
+  _logoutFn = opts.onLogout;
+}
+
+// ---------------------------------------------------------------------------
+// Unified API response shape
+// ---------------------------------------------------------------------------
+
 export interface ApiResponse<T = unknown> {
   code: number;
   data: T;
   message: string;
 }
 
-/** Shape of a paginated response. */
 export interface PaginatedData<T = unknown> {
   items: T[];
   total: number;
@@ -19,37 +41,83 @@ export interface PaginatedData<T = unknown> {
   page_size: number;
 }
 
-/** Options that can be passed to apiRequest. */
-interface ApiRequestOptions extends Omit<RequestInit, "body"> {
+export interface ApiRequestOptions extends Omit<RequestInit, "body"> {
   body?: unknown;
 }
 
-/**
- * Low-level fetch wrapper that adds common headers and parses the unified
- * ``{code, data, message}`` response envelope.
- *
- * @throws `ApiError` when the backend returns ``code !== 0`` or a network error occurs.
- */
+// ---------------------------------------------------------------------------
+// Low-level fetch wrapper with auto-refresh
+// ---------------------------------------------------------------------------
+
+let _isRefreshing = false;
+let _refreshPromise: Promise<string | null> | null = null;
+
 async function apiRequest<T>(endpoint: string, options: ApiRequestOptions = {}): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
 
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (typeof window !== "undefined") {
-    const token = localStorage.getItem("token");
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
+  const makeHeaders = (): Record<string, string> => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("token");
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
     }
-  }
+    return headers;
+  };
 
-  let response: Response;
-  try {
-    response = await fetch(url, {
+  const doFetch = async (): Promise<Response> => {
+    const headers = makeHeaders();
+    return fetch(url, {
       ...options,
       headers: { ...headers, ...(options.headers as Record<string, string>) },
       body: options.body ? JSON.stringify(options.body) : undefined,
     });
+  };
+
+  let response: Response;
+  try {
+    response = await doFetch();
   } catch {
     throw new ApiError(0, "Network error — please check your connection");
+  }
+
+  if (response.status === 401 && typeof window !== "undefined") {
+    // Try to refresh the access token
+    if (!_refreshFn) {
+      throw new ApiError(401, "Unauthenticated");
+    }
+
+    try {
+      let newToken: string | null = null;
+      if (!_isRefreshing) {
+        _isRefreshing = true;
+        _refreshPromise = _refreshFn();
+        newToken = await _refreshPromise;
+        _isRefreshing = false;
+      } else {
+        newToken = await _refreshPromise;
+      }
+
+      if (!newToken) {
+        _logoutFn?.();
+        throw new ApiError(401, "Session expired — please log in again");
+      }
+
+      localStorage.setItem("token", newToken);
+      // Retry the original request with the new token
+      const headers = makeHeaders();
+      response = await fetch(url, {
+        ...options,
+        headers: { ...headers, ...(options.headers as Record<string, string>) },
+        body: options.body ? JSON.stringify(options.body) : undefined,
+      });
+    } catch (refreshErr) {
+      _logoutFn?.();
+      throw refreshErr instanceof ApiError
+        ? refreshErr
+        : new ApiError(401, "Session expired — please log in again");
+    }
   }
 
   let body: ApiResponse;
@@ -66,10 +134,12 @@ async function apiRequest<T>(endpoint: string, options: ApiRequestOptions = {}):
   return body.data as T;
 }
 
-/** Error thrown when an API call returns ``code !== 0``. */
+// ---------------------------------------------------------------------------
+// Error class
+// ---------------------------------------------------------------------------
+
 export class ApiError extends Error {
   code: number;
-
   constructor(code: number, message: string) {
     super(message);
     this.code = code;
@@ -119,6 +189,7 @@ export interface RegisterRequest {
 
 export interface AuthResponse {
   access_token: string;
+  refresh_token: string;
   token_type: string;
   user_id: string;
   email?: string;
@@ -139,8 +210,30 @@ export async function register(
   return post<AuthResponse>("/api/v1/auth/register", data);
 }
 
+/** Refresh access token using a refresh token. */
+export async function refreshTokenRequest(
+  refreshToken: string
+): Promise<{ access_token: string; token_type: string }> {
+  const url = `${API_BASE_URL}/api/v1/auth/refresh`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+  if (!response.ok) {
+    throw new Error("Refresh failed");
+  }
+  const body = await response.json();
+  if (body.code !== 0) {
+    throw new Error(body.message || "Refresh failed");
+  }
+  return { access_token: body.data.access_token, token_type: body.data.token_type };
+}
+
 /** Get current user info (requires auth). */
-export async function getMe(): Promise<AuthResponse & { role: string; status: string }> {
+export async function getMe(): Promise<
+  AuthResponse & { role: string; status: string }
+> {
   return get<AuthResponse & { role: string; status: string }>("/api/v1/auth/me");
 }
 
@@ -154,7 +247,10 @@ export async function checkHealth(): Promise<{ status: string }> {
 }
 
 /** Get current user's credit balance. */
-export async function getCreditBalance(): Promise<{ balance: number; frozen: number }> {
+export async function getCreditBalance(): Promise<{
+  balance: number;
+  frozen: number;
+}> {
   return get<{ balance: number; frozen: number }>("/api/credits/balance");
 }
 

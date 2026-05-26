@@ -18,9 +18,10 @@ import Alert from "@mui/material/Alert";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import CircularProgress from "@mui/material/CircularProgress";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { createPodcast, ApiError } from "@/lib/api";
+import { createPodcast, getCreditBalance, ApiError } from "@/lib/api";
 
 const MODES = [
   { value: "solo", label: "单人解读", desc: "适合知识分享、新闻播报" },
@@ -64,9 +65,27 @@ export default function CreatePage() {
   const [duoTemplate, setDuoTemplate] = React.useState("host_expert");
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
+  const [balance, setBalance] = React.useState<number | null>(null);
 
   const charCount = inputType === "text" ? text.length : topic.length;
-  const estimatedCredits = Math.max(20, charCount);
+  const estimatedCredits = charCount + 20; // 字数×1 + 脚本生成20积分
+
+  // 获取余额
+  React.useEffect(() => {
+    let cancelled = false;
+    const loadBalance = async () => {
+      try {
+        const data = await getCreditBalance();
+        if (!cancelled) setBalance(data.balance);
+      } catch {
+        if (!cancelled) setBalance(500); // mock
+      }
+    };
+    loadBalance();
+    return () => { cancelled = true; };
+  }, []);
+
+  const insufficientBalance = balance !== null && estimatedCredits > balance;
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -244,6 +263,31 @@ export default function CreatePage() {
         </Grid>
       </Box>
 
+      {/* Voice Preview */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="body2" fontWeight={600} gutterBottom>
+          音色试听
+        </Typography>
+        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+          {(mode === "duo" ? [
+            { label: "角色A", voice: voiceA },
+            { label: "角色B", voice: voiceB },
+          ] : [
+            { label: "当前音色", voice: voiceA },
+          ]).map((item) => (
+            <Button
+              key={item.voice}
+              size="small"
+              variant="outlined"
+              startIcon={<PlayArrowIcon />}
+              onClick={() => alert("音色试听功能开发中")}
+            >
+              {item.label}: {VOICE_OPTIONS.find(v => v.value === item.voice)?.label}
+            </Button>
+          ))}
+        </Box>
+      </Box>
+
       <Divider sx={{ my: 3 }} />
 
       {/* Generation Guide */}
@@ -287,9 +331,14 @@ export default function CreatePage() {
       </Box>
 
       {/* Estimated Credits */}
-      <Alert severity="info" sx={{ mb: 3 }}>
+      <Alert severity={insufficientBalance ? "warning" : "info"} sx={{ mb: 3 }}>
         预计消耗：<strong>{estimatedCredits} 积分</strong>
-        &nbsp;·&nbsp;当前余额：<strong>500 积分</strong>
+        &nbsp;·&nbsp;当前余额：<strong>{balance !== null ? balance : "..."} 积分</strong>
+        {insufficientBalance && (
+          <Typography variant="caption" sx={{ display: "block", mt: 0.5, color: "error.main" }}>
+            余额不足，请充值
+          </Typography>
+        )}
       </Alert>
 
       {/* Error */}
@@ -306,7 +355,7 @@ export default function CreatePage() {
         size="large"
         fullWidth
         endIcon={loading ? <CircularProgress size={20} color="inherit" /> : <ArrowForwardIcon />}
-        disabled={loading || charCount === 0 || charCount > 5000}
+        disabled={loading || charCount === 0 || charCount > 5000 || insufficientBalance}
         onClick={handleGenerate}
         sx={{ py: 1.5, fontSize: "1.1rem" }}
       >

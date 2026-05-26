@@ -24,7 +24,7 @@ pwd_context = CryptContext(
 
 # JWT
 ALGORITHM = "HS256"
-oauth2_scheme = HTTPBearer()
+oauth2_scheme = HTTPBearer(auto_error=False)  # 与 auth.py 一致
 
 
 # ---------------------------------------------------------------------------
@@ -55,7 +55,15 @@ def create_access_token(
         expires_delta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
     expire = datetime.utcnow() + expires_delta
-    to_encode: Dict[str, Any] = {"exp": expire, "sub": str(subject)}
+    to_encode: Dict[str, Any] = {"exp": expire, "sub": str(subject), "type": "access"}
+    encoded_jwt = jwt_lib.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+
+def create_refresh_token(subject: Union[str, Any]) -> str:
+    """Create a long-lived JWT refresh token (7 days)."""
+    expire = datetime.utcnow() + timedelta(days=7)
+    to_encode: Dict[str, Any] = {"exp": expire, "sub": str(subject), "type": "refresh"}
     encoded_jwt = jwt_lib.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
@@ -82,15 +90,20 @@ def get_current_user(
 ) -> User:
     """Validate the Bearer token and return the owning User object.
 
-    Raises 401 if the token is missing, invalid, expired, or the user no
-    longer exists / is inactive.
+    Returns 401 if token is missing or invalid.
     """
-    token = credentials.credentials
-    payload = decode_access_token(token)
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    payload = decode_access_token(credentials.credentials)
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
+            detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -98,22 +111,22 @@ def get_current_user(
     if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail="Invalid token payload",
         )
 
-    user = db.query(User).filter(User.id == user_id).first()
+    user: Optional[User] = (
+        db.query(User).filter(User.id == user_id).first()
+    )
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
-            headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if getattr(user, "is_active", True) is False:
+    if user.status != "active":
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user",
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is disabled",
         )
 
     return user

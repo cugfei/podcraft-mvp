@@ -36,6 +36,8 @@ export default function PodcastsPage() {
   const [podcasts, setPodcasts] = React.useState<PodcastProject[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
+  const [playingId, setPlayingId] = React.useState<string | null>(null);
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -69,6 +71,24 @@ export default function PodcastsPage() {
     }
   };
 
+  const handlePlay = (p: PodcastProject) => {
+    if (!p.final_audio_asset) {
+      alert("暂无音频文件");
+      return;
+    }
+    // TODO: 后端需要实现音频下载端点
+    alert("播放功能开发中，后续版本开放");
+  };
+
+  const handleDownload = (p: PodcastProject) => {
+    if (!p.final_audio_asset) {
+      alert("暂无音频文件");
+      return;
+    }
+    // TODO: 后端需要实现音频下载端点
+    alert("下载功能开发中，后续版本开放");
+  };
+
   return (
     <Container maxWidth="lg" sx={{ py: 6 }}>
       <Typography variant="h4" fontWeight={700} gutterBottom>
@@ -91,7 +111,7 @@ export default function PodcastsPage() {
         <Box sx={{ textAlign: "center", py: 8 }}>
           <CircularProgress />
         </Box>
-      ) : podcats.length === 0 ? (
+      ) : podcasts.length === 0 ? (
         <Box sx={{ textAlign: "center", py: 8 }}>
           <Typography variant="h6" color="text.secondary" gutterBottom>
             还没有播客
@@ -134,8 +154,8 @@ export default function PodcastsPage() {
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                     {p.status === "completed" && (
                       <>
-                        <IconButton size="small" sx={{ color: "var(--success)" }}><PlayArrowIcon fontSize="small" /></IconButton>
-                        <IconButton size="small"><DownloadIcon fontSize="small" /></IconButton>
+                        <IconButton size="small" sx={{ color: "var(--success)" }} onClick={() => handlePlay(p)}><PlayArrowIcon fontSize="small" /></IconButton>
+                        <IconButton size="small" onClick={() => handleDownload(p)}><DownloadIcon fontSize="small" /></IconButton>
                       </>
                     )}
                     <IconButton size="small" component={Link} href={`/editor/${p.id}`}><EditIcon fontSize="small" /></IconButton>

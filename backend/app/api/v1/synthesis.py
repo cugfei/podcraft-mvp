@@ -22,74 +22,10 @@ class SynthesizeRequest(BaseModel):
     task_type: str = "full"  # full / segment
 
 
-class SynthesisResponse(BaseModel):
-    """Response for synthesis operations."""
-
-    code: int = 0
-    data: Optional[dict] = None
-    message: str = "ok"
-
-
-@router.post("/podcasts/{podcast_id}/synthesize")
-async def start_synthesis(
-    podcast_id: str,
-    body: SynthesizeRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> SynthesisResponse:
-    """Start TTS synthesis for a podcast project.
-
-    Returns:
-        Task ID for tracking progress.
-    """
-    # Verify project ownership
-    from app.models.podcast import PodcastProject
-
-    project = (
-        db.query(PodcastProject)
-        .filter(
-            PodcastProject.id == podcast_id,
-            PodcastProject.user_id == current_user.id,
-        )
-        .first()
-    )
-    if not project:
-        raise HTTPException(status_code=404, detail="Podcast not found")
-
-    # Check if project is ready
-    if project.status not in ["ready_to_synthesize", "completed", "failed"]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Project not ready for synthesis. Current status: {project.status}",
-        )
-
-    # Create and run synthesis task (synchronous for MVP with Mock TTS)
-    try:
-        task = create_synthesis_task(
-            db=db,
-            project_id=podcast_id,
-            user_id=str(current_user.id),
-            task_type=body.task_type,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Synthesis failed: {str(e)}")
-
-    # Update project status
-    project.status = "completed" if task.status == "completed" else task.status
-    db.commit()
-
-    return SynthesisResponse(
-        data={
-            "task_id": str(task.id),
-            "status": task.status,
-            "total_segments": task.total_segments,
-            "completed_segments": task.completed_segments,
-            "project_status": project.status,
-        },
-        message=f"Synthesis {task.status}",
-    )
+# ---------------------------------------------------------------------------
+# NOTE: /podcasts/{podcast_id}/synthesize moved to podcasts.py (T-4.6)
+# Keep only task query endpoints below.
+# ---------------------------------------------------------------------------
 
 
 @router.get("/synthesis-tasks/{task_id}")

@@ -444,3 +444,144 @@ def change_voice(
 
     db.commit()
     return {"code": 0, "data": role.to_dict(), "message": "voice changed, segments marked draft"}
+
+
+# ---------------------------------------------------------------------------
+# Synthesis (T-4.6)
+# ---------------------------------------------------------------------------
+from typing import Optional
+from app.models.synthesis_task import SynthesisTask
+from app.services.synthesis_service import create_synthesis_task, get_task_status
+
+
+class SynthesisRequest(BaseModel):
+    task_type: str = "full"  # "full" | "role" | "segment"
+    voice_id: Optional[str] = None
+    speed: float = 1.0
+    pitch: int = 0
+    volume: float = 1.0
+
+
+class SynthesisStatusResponse(BaseModel):
+    id: str
+    project_id: str
+    task_type: str
+    status: str
+    total_segments: int
+    completed_segments: int
+    progress: float
+    created_at: str
+    updated_at: Optional[str] = None
+
+
+@router.post("/{podcast_id}/synthesize")
+def synthesize_podcast(
+    podcast_id: str,
+    body: SynthesisRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_session),
+):
+    """Start a synthesis task (Mock TTS for MVP)."""
+    project = (
+        db.query(PodcastProject)
+        .filter(
+            PodcastProject.id == podcast_id,
+            PodcastProject.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if project.status not in ("ready_to_synthesize", "synthesis_done"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Project not ready for synthesis (status={project.status})",
+        )
+
+    try:
+        task = create_synthesis_task(
+            db=db,
+            project_id=podcast_id,
+            task_type=body.task_type,
+            voice_id=body.voice_id,
+            speed=body.speed,
+            pitch=body.pitch,
+            volume=body.volume,
+        )
+        return {
+            "code": 0,
+            "data": {
+                "task_id": task.id,
+                "status": task.status,
+                "total_segments": task.total_segments,
+                "completed_segments": task.completed_segments,
+            },
+            "message": "synthesis task created",
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.get("/synthesis-tasks/{task_id}")
+def get_synthesis_status(
+    task_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_session),
+):
+    """Get synthesis task status."""
+    task = get_task_status(db, task_id, current_user.id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {
+        "code": 0,
+        "data": {
+            "id": task.id,
+            "project_id": task.project_id,
+            "task_type": task.task_type,
+            "status": task.status,
+            "total_segments": task.total_segments,
+            "completed_segments": task.completed_segments,
+            "progress": round(task.progress, 2),
+            "created_at": task.created_at.isoformat(),
+            "updated_at": task.updated_at.isoformat() if task.updated_at else None,
+        },
+        "message": "ok",
+    }
+
+
+@router.get("/synthesis-tasks")
+def list_synthesis_tasks(
+    podcast_id: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_session),
+):
+    """List synthesis tasks (optionally filtered by project)."""
+    from app.models.podcast import PodcastProject as PP
+
+    query = (
+        db.query(SynthesisTask)
+        .join(PP, SynthesisTask.project_id == PP.id)
+        .filter(PP.user_id == current_user.id)
+    )
+    if podcast_id:
+        query = query.filter(SynthesisTask.project_id == podcast_id)
+
+    tasks = query.order_by(SynthesisTask.created_at.desc()).all()
+    return {
+        "code": 0,
+        "data": [
+            {
+                "id": t.id,
+                "project_id": t.project_id,
+                "task_type": t.task_type,
+                "status": t.status,
+                "total_segments": t.total_segments,
+                "completed_segments": t.completed_segments,
+                "progress": round(t.progress, 2),
+                "created_at": t.created_at.isoformat(),
+            }
+            for t in tasks
+        ],
+        "message": "ok",
+    }

@@ -8,7 +8,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.models.podcast import PodcastProject, PodcastScript, PodcastRole, PodcastSegment
+from app.models.podcast import PodcastProject, PodcastScript, PodcastRole
+from app.models.segment import PodcastSegment
 from app.models.user import User
 from app.api.v1.auth import get_current_user
 from app.services.llm_service import generate_script, parse_script_to_segments
@@ -72,10 +73,31 @@ async def generate_podcast_script(
             detail="No outline found. Please generate outline first.",
         )
 
-    # Get roles for duo mode
+    # Get or create roles
     roles = []
     if project.mode == "duo":
         roles = [role.to_dict() for role in project.roles]
+
+    # For solo mode, ensure a default host role exists
+    if not roles:
+        host_role = (
+            db.query(PodcastRole)
+            .filter(
+                PodcastRole.project_id == podcast_id,
+                PodcastRole.role_key == "host",
+            )
+            .first()
+        )
+        if not host_role:
+            host_role = PodcastRole(
+                project_id=podcast_id,
+                role_key="host",
+                name="主持人",
+                color="#1976d2",
+            )
+            db.add(host_role)
+            db.flush()  # Get the ID
+        roles = [host_role.to_dict()]
 
     # Generate script using LLM
     try:

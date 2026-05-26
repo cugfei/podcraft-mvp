@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.models.synthesis_task import SynthesisTask
 from app.models.audio_asset import AudioAsset
-from app.models.podcast import PodcastProject, PodcastScript, PodcastSegment
+from app.models.podcast import PodcastProject, PodcastScript
+from app.models.segment import PodcastSegment
 from app.models.user import User
 from app.utils.mock_tts import mock_synthesize
 

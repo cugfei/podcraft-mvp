@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.analytics import AnalyticsEvent, UserActivity
 from app.models.user import User
-from app.api.v1.auth import get_current_user, get_current_admin
+from app.api.v1.auth import get_current_user
+from app.api.v1.admin_deps import get_current_admin
 from app.services.analytics_service import (
     record_event,
     get_user_events,

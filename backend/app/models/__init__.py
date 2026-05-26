@@ -9,6 +9,8 @@ from app.models.podcast import PodcastProject, PodcastScript, PodcastRole
 from app.models.segment import PodcastSegment
 from app.models.synthesis_task import SynthesisTask
 from app.models.audio_asset import AudioAsset
+from app.models.analytics import AnalyticsEvent, UserActivity
+
 
 __all__ = [
     "Base",
@@ -24,4 +26,6 @@ __all__ = [
     "PodcastSegment",
     "SynthesisTask",
     "AudioAsset",
+    "AnalyticsEvent",
+    "UserActivity",
 ]

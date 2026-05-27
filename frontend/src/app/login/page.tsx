@@ -15,11 +15,16 @@ import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, loading } = useAuth();
+  const { login, loading, error: authError } = useAuth();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
+
+  // Show AuthContext error if present
+  React.useEffect(() => {
+    if (authError) setError(authError);
+  }, [authError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,7 +38,7 @@ export default function LoginPage() {
       await login(email, password);
       router.push("/");
     } catch {
-      // error is set by AuthContext
+      // error is set by AuthContext or local validation
     } finally {
       setSubmitting(false);
     }

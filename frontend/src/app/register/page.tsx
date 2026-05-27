@@ -15,12 +15,17 @@ import { useAuth } from "@/context/AuthContext";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register, loading } = useAuth();
+  const { register, loading, error: authError } = useAuth();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [confirm, setConfirm] = React.useState("");
   const [error, setError] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
+
+  // Show AuthContext error if present
+  React.useEffect(() => {
+    if (authError) setError(authError);
+  }, [authError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +47,7 @@ export default function RegisterPage() {
       await register({ email, password, nickname: email.split("@")[0] });
       router.push("/");
     } catch {
-      // error is set by AuthContext
+      // error is set by AuthContext or local validation
     } finally {
       setSubmitting(false);
     }

@@ -6,6 +6,7 @@ import {
   login as apiLogin,
   register as apiRegister,
   getMe,
+  getCreditBalance,
   setAuthCallbacks,
   refreshTokenRequest,
   ApiError,

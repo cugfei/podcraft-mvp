@@ -1,4 +1,4 @@
-# ---- Stage 1: Builder (install dependencies) ----
+# ---- Stage 1: Builder ----
 FROM python:3.11-slim AS builder
 
 WORKDIR /app
@@ -16,6 +16,13 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
+# Copy application code
+COPY . .
+
+# Run linter/formatter (optional, fails CI if not compliant)
+# RUN flake8 app/
+# RUN black --check app/
+
 # ---- Stage 2: Runtime ----
 FROM python:3.11-slim
 
@@ -30,8 +37,8 @@ RUN apt-get update && apt-get install -y \
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Copy application code
-COPY . .
+# Copy application code from builder
+COPY --from=builder /app /app
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && \
@@ -39,12 +46,12 @@ RUN useradd -m -u 1000 appuser && \
 
 USER appuser
 
-# Expose port
+# Expose port (matches uvicorn --port)
 EXPOSE 8000
 
-# Health check
+# Health check (use curl or python -c "import urllib...")
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
-# Run with uvicorn
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+# Run with uvicorn (multiple workers for production)
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers ${WORKERS:-4}"]

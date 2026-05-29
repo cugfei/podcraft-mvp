@@ -51,6 +51,35 @@ class ScriptUpdate(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _get_project(project_id: str, user: User, db: Session) -> PodcastProject:
+    project = (
+        db.query(PodcastProject)
+        .filter(PodcastProject.id == project_id, PodcastProject.user_id == user.id)
+        .first()
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Podcast not found")
+    return project
+
+
+def _get_script(project_id: str, db: Session) -> PodcastScript:
+    script = (
+        db.query(PodcastScript)
+        .filter(PodcastScript.project_id == project_id)
+        .first()
+    )
+    if not script:
+        script = PodcastScript(project_id=project_id)
+        db.add(script)
+        db.commit()
+        db.refresh(script)
+    return script
+
+
+# ---------------------------------------------------------------------------
 # List podcasts
 # ---------------------------------------------------------------------------
 @router.get("/list")
@@ -296,7 +325,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import wave, os
 
-AUDIO_DIR = Path(__file__).resolve().parent.parent.parent / "static" / "audio"
+AUDIO_DIR = Path(__file__).resolve().parent.parent.parent.parent / "static" / "audio"
 AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 

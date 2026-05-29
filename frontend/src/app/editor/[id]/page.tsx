@@ -201,7 +201,7 @@ interface PodcastSegment {
   id: string;
   text: string;
   role_id?: string;
-  role?: { name: string; color?: string };
+  role?: { name: string; role_key?: string; color?: string };
   emotion?: string;
   pause_after_ms?: number;
   status: string;
@@ -270,6 +270,9 @@ export default function EditorPage() {
   const [balance, setBalance] = React.useState<number | null>(null);
   const [voices, setVoices] = React.useState<Array<{id: string; name: string; provider: string; provider_voice_id: string; gender: string; language: string}>>([]);
   const [voiceModel, setVoiceModel] = React.useState("mimo");
+  const [duoVoiceModel, setDuoVoiceModel] = React.useState("mimo");
+  const [duoRoleAVoice, setDuoRoleAVoice] = React.useState("");
+  const [duoRoleBVoice, setDuoRoleBVoice] = React.useState("");
 
   // Editing state
   const [editingSegId, setEditingSegId] = React.useState<string | null>(null);
@@ -408,17 +411,49 @@ export default function EditorPage() {
     loadVoices(voiceModel);
   }, [projectId, loadData, loadBalance, loadVoices, voiceModel]);
 
-  // Auto-display audio player for solo mode when completed segment exists
+  // Auto-display audio for solo (individual) or duo (merged) mode
+  const audioLoadAttempted = React.useRef(false);
+
   React.useEffect(() => {
-    if (isDuoMode || segments.length === 0) return;
-    const completed = segments.find(s => s.status === "completed" && s.audio_asset?.url);
-    if (completed && completed.audio_asset?.url) {
-      setSynthesisAudio({
-        url: `${API_BASE}${completed.audio_asset.url}`,
-        filename: `segment_${completed.id}.wav`,
-      });
+    if (segments.length === 0) return;
+    if (audioLoadAttempted.current) return;
+    
+    if (!isDuoMode) {
+      // Solo: find a completed segment
+      const completed = segments.find(s => s.status === "completed" && s.audio_asset?.url);
+      if (completed?.audio_asset?.url) {
+        setSynthesisAudio({
+          url: `${API_BASE}${completed.audio_asset.url}`,
+          filename: `segment_${completed.id}.wav`,
+        });
+        audioLoadAttempted.current = true;
+      }
+    } else {
+      // Duo: check if all completed, then try to load merged audio
+      const allDone = segments.length > 0 && segments.every(s => s.status === "completed");
+      if (allDone) {
+        audioLoadAttempted.current = true;
+        // Try to load merged audio
+        apiFetch<{ url: string }>(`/api/v1/podcasts/${projectId}/rebuild-audio`, { method: "POST" })
+          .then((result) => {
+            setSynthesisAudio({
+              url: `${API_BASE}${result.url}`,
+              filename: `full_${projectId}.wav`,
+            });
+          })
+          .catch(() => {
+            // Fallback: show last completed segment
+            const last = [...segments].reverse().find(s => s.status === "completed" && s.audio_asset?.url);
+            if (last?.audio_asset?.url) {
+              setSynthesisAudio({
+                url: `${API_BASE}${last.audio_asset.url}`,
+                filename: `segment_${last.id}.wav`,
+              });
+            }
+          });
+      }
     }
-  }, [segments, isDuoMode]);
+  }, [segments, isDuoMode, projectId]);
 
   // -----------------------------------------------------------------------
   // Segment operations
@@ -655,10 +690,69 @@ export default function EditorPage() {
       setSegments((prev) =>
         prev.map((s) => (s.id === segId ? { ...s, status: "queued" as const } : s))
       );
-      setSuccessMsg("合成已开始");
+      setSuccessMsg(`片段 ${segId.slice(0, 8)} 合成已开始`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "合成失败");
       setSynthesizingId(null);
+    }
+  };
+
+  // Batch synthesize all non-completed segments (duo mode)
+  const handleBatchSynthesize = async () => {
+    const toSynth = segments.filter((s) => s.status !== "completed");
+    if (toSynth.length === 0) {
+      setError("没有需要合成的片段");
+      return;
+    }
+    setError("");
+    setSynthesisAudio(null);
+
+    // Check if voices are selected (duo mode)
+    if (isDuoMode) {
+      if (!duoRoleAVoice || !duoRoleBVoice) {
+        const missing = !duoRoleAVoice && !duoRoleBVoice ? "角色 A 和角色 B" : !duoRoleAVoice ? "角色 A" : "角色 B";
+        setError(`请先在「基本设置」中选择 ${missing} 的音色`);
+        return;
+      }
+    }
+
+    // Sync role voice settings before synthesizing (duo mode)
+    if (isDuoMode) {
+      const roleMap: Record<string, string> = {};
+      for (const seg of segments) {
+        if (seg.role_id && seg.role?.role_key) {
+          const selectedVoice = seg.role.role_key === "host" ? duoRoleAVoice : duoRoleBVoice;
+          if (selectedVoice) {
+            roleMap[seg.role_id] = selectedVoice;
+          }
+        }
+      }
+      // Update each role's voice_id via API
+      await Promise.all(
+        Object.entries(roleMap).map(([roleId, voiceId]) =>
+          apiFetch(`/api/v1/podcasts/roles/${roleId}/change-voice`, {
+            method: "POST",
+            body: JSON.stringify({ voice_id: voiceId, speed: 1.0, pitch: 0, volume: 1.0 }),
+          }).catch(() => {/* ignore voice sync errors */})
+        )
+      );
+    }
+
+    let successCount = 0;
+    for (const seg of toSynth) {
+      try {
+        await apiFetch(`/api/v1/segments/segments/${seg.id}/synthesize`, { method: "POST" });
+        setSegments((prev) =>
+          prev.map((s) => (s.id === seg.id ? { ...s, status: "queued" as const } : s))
+        );
+        successCount++;
+      } catch (err: unknown) {
+        setError(`${err instanceof Error ? err.message : "合成失败"} (片段 ${seg.id.slice(0, 8)})`);
+      }
+    }
+    if (successCount > 0) {
+      setSynthesizingId(toSynth[0].id);
+      setSuccessMsg(`已提交 ${successCount}/${toSynth.length} 个片段合成`);
     }
   };
 
@@ -691,7 +785,7 @@ export default function EditorPage() {
     lines.forEach((line) => {
       const trimmed = line.trim();
       if (!trimmed) return;
-      const roleMatch = trimmed.match(/^([AB])[：:]\s*(.*)/);
+      const roleMatch = trimmed.match(/^([ABab])[：:]\s*(.*)/);
       if (roleMatch) {
         if (currentRole && currentText) {
           dialogues.push({ role: currentRole, text: currentText });
@@ -712,22 +806,22 @@ export default function EditorPage() {
       return;
     }
 
-    // Create segments via API
+    // Create segments via API (sequentially to preserve sort order)
     setError("");
     pushUndo(segments);
     try {
-      const newSegments = await Promise.all(
-        dialogues.map((d) => {
-          const roleKey = d.role === "A" ? "host" : "guest";
-          return apiFetch<PodcastSegment>(`/api/v1/segments/podcasts/${projectId}/segments`, {
-            method: "POST",
-            body: JSON.stringify({
-              role_key: roleKey,
-              text: d.text,
-            }),
-          });
-        })
-      );
+      const newSegments: PodcastSegment[] = [];
+      for (const d of dialogues) {
+        const roleKey = d.role.toUpperCase() === "A" ? "host" : "guest";
+        const seg = await apiFetch<PodcastSegment>(`/api/v1/segments/podcasts/${projectId}/segments`, {
+          method: "POST",
+          body: JSON.stringify({
+            role_key: roleKey,
+            text: d.text,
+          }),
+        });
+        newSegments.push(seg);
+      }
       setSegments((prev) => [...prev, ...newSegments.map((s) => ({ ...s, status: "draft" as const }))]);
       setBatchInput("");
       setSuccessMsg(`已解析并创建 ${dialogues.length} 条对话`);
@@ -774,15 +868,37 @@ export default function EditorPage() {
           })
         );
         // Check if any completed
+        let completedIds: string[] = [];
         for (const u of updated) {
           if (u && u.status === "completed" && u.audio_asset?.url) {
             setSynthesizingId(null);
-            const audioUrl = `${API_BASE}${u.audio_asset.url}`;
-            setSynthesisAudio({ url: audioUrl, filename: `segment_${u.id}.wav` });
-            setSuccessMsg("合成完成！");
+            completedIds.push(u.id);
+            // For solo mode, show individual segment player immediately
+            if (!isDuoMode) {
+              const audioUrl = `${API_BASE}${u.audio_asset.url}`;
+              setSynthesisAudio({ url: audioUrl, filename: `segment_${u.id}.wav` });
+              setSuccessMsg("合成完成！");
+            }
           } else if (u && u.status === "failed") {
             setSynthesizingId(null);
             setError(u.error_message || "合成失败");
+          }
+        }
+
+        // For duo mode: check if ALL tracked segments completed, then auto-merge
+        if (isDuoMode && completedIds.length > 0) {
+          const stillActive = updated.filter((u) => u.status !== "completed");
+          if (stillActive.length === 0 && ids.length > 0) {
+            try {
+              const result = await apiFetch<{ url: string }>(`/api/v1/podcasts/${projectId}/rebuild-audio`, {
+                method: "POST",
+              });
+              const mergedUrl = `${API_BASE}${result.url}`;
+              setSynthesisAudio({ url: mergedUrl, filename: `full_${projectId}.wav` });
+              setSuccessMsg("所有片段合成完成！");
+            } catch {
+              setSuccessMsg("片段已合成完成");
+            }
           }
         }
       } catch { /* ignore */ }
@@ -1410,23 +1526,51 @@ export default function EditorPage() {
           <span className="text-brand"><Icons.Settings /></span>
           基本设置
         </div>
+        {/* Voice model selector */}
+        <div className="flex flex-col gap-1.5 mb-4">
+          <label className="text-[13px] font-semibold text-text">语音模型</label>
+          <select
+            value={duoVoiceModel}
+            onChange={(e) => {
+              setDuoVoiceModel(e.target.value);
+              loadVoices(e.target.value);
+            }}
+            className="w-full px-4 py-3 text-sm font-medium border-[1.5px] border-line rounded-xl bg-white text-text outline-none focus:border-brand focus:ring-3 focus:ring-brand/5 transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%236b7280%27 stroke-width=%272%27%3E%3Cpolyline points=%276 9 12 15 18 9%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_14px_center] pr-10"
+          >
+            <option value="mimo">MiMo v2.5 (小米)</option>
+            <option value="minimax">MiniMax</option>
+            <option value="edge-tts">Edge-TTS</option>
+          </select>
+        </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-2">
             <label className="text-[13px] font-semibold text-text">角色 A 音色</label>
-            <select className="w-full px-4 py-3 text-sm font-medium border-[1.5px] border-line rounded-xl bg-white text-text outline-none focus:border-brand focus:ring-3 focus:ring-brand/5 transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%236b7280%27 stroke-width=%272%27%3E%3Cpolyline points=%276 9 12 15 18 9%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_14px_center] pr-10">
-              <option>男声-中文-1</option>
-              <option>女声-中文-1</option>
-              <option>Male-English-1</option>
-              <option>Female-English-1</option>
+            <select
+              value={duoRoleAVoice}
+              onChange={(e) => setDuoRoleAVoice(e.target.value)}
+              className="w-full px-4 py-3 text-sm font-medium border-[1.5px] border-line rounded-xl bg-white text-text outline-none focus:border-brand focus:ring-3 focus:ring-brand/5 transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%236b7280%27 stroke-width=%272%27%3E%3Cpolyline points=%276 9 12 15 18 9%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_14px_center] pr-10"
+            >
+              <option value="">请选择音色</option>
+              {voices.filter((v) => v.provider === duoVoiceModel || !duoVoiceModel).map((v) => (
+                <option key={v.id} value={v.provider_voice_id}>
+                  {v.name} ({v.gender === "male" ? "男声" : v.gender === "female" ? "女声" : "中性"})
+                </option>
+              ))}
             </select>
           </div>
           <div className="flex flex-col gap-2">
             <label className="text-[13px] font-semibold text-text">角色 B 音色</label>
-            <select className="w-full px-4 py-3 text-sm font-medium border-[1.5px] border-line rounded-xl bg-white text-text outline-none focus:border-brand focus:ring-3 focus:ring-brand/5 transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%236b7280%27 stroke-width=%272%27%3E%3Cpolyline points=%276 9 12 15 18 9%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_14px_center] pr-10">
-              <option>女声-中文-1</option>
-              <option>男声-中文-1</option>
-              <option>Female-English-1</option>
-              <option>Male-English-1</option>
+            <select
+              value={duoRoleBVoice}
+              onChange={(e) => setDuoRoleBVoice(e.target.value)}
+              className="w-full px-4 py-3 text-sm font-medium border-[1.5px] border-line rounded-xl bg-white text-text outline-none focus:border-brand focus:ring-3 focus:ring-brand/5 transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%236b7280%27 stroke-width=%272%27%3E%3Cpolyline points=%276 9 12 15 18 9%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_14px_center] pr-10"
+            >
+              <option value="">请选择音色</option>
+              {voices.filter((v) => v.provider === duoVoiceModel || !duoVoiceModel).map((v) => (
+                <option key={v.id} value={v.provider_voice_id}>
+                  {v.name} ({v.gender === "male" ? "男声" : v.gender === "female" ? "女声" : "中性"})
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -1468,7 +1612,7 @@ export default function EditorPage() {
             const isEditing = editingSegId === seg.id;
             const draft = editing[seg.id];
             const roleColor = getRoleColor(seg);
-            const isRoleA = seg.role_id === "host";
+            const isRoleA = (seg.role?.role_key || seg.role_id) === "host";
 
             return (
               <div
@@ -1477,7 +1621,7 @@ export default function EditorPage() {
               >
                 {/* Role select */}
                 <select
-                  value={seg.role_id || "host"}
+                  value={seg.role?.role_key || "host"}
                   onChange={(e) => {
                     // Update role
                     const newRoleId = e.target.value;
@@ -1535,7 +1679,29 @@ export default function EditorPage() {
           })}
         </div>
 
-        {/* Add dialogue button */}
+        {/* Add individual dialogue entry */}
+        <div className="flex items-start gap-3 mt-5 pt-5 border-t border-line-light">
+          <select
+            value={newSegRole}
+            onChange={(e) => setNewSegRole(e.target.value)}
+            className="w-[100px] px-3 py-2.5 text-sm font-medium border-[1.5px] border-line rounded-xl bg-white text-text outline-none focus:border-brand flex-shrink-0"
+          >
+            <option value="host">角色 A</option>
+            <option value="guest">角色 B</option>
+          </select>
+          <input
+            value={newSegText}
+            onChange={(e) => setNewSegText(e.target.value)}
+            placeholder="输入对话文本..."
+            className="flex-1 px-4 py-2.5 text-sm font-medium border-[1.5px] border-line rounded-xl bg-white text-text outline-none focus:border-brand focus:ring-3 focus:ring-brand/5 transition-all placeholder:text-text-light"
+            onKeyDown={(e) => { if (e.key === "Enter") handleAddSegment(); }}
+          />
+          <button onClick={handleAddSegment} className="px-4 py-2.5 bg-brand text-white text-sm font-semibold rounded-lg hover:bg-brand-2 transition-colors flex-shrink-0">
+            添加
+          </button>
+        </div>
+
+        {/* Add dialogue button (legacy) */}
         <button
           onClick={handleAddSegment}
           className="w-full mt-3 py-3 text-sm font-semibold border-[1.5px] border-dashed border-line rounded-xl text-text-muted hover:border-brand-3 hover:text-text transition-colors flex items-center justify-center gap-2"
@@ -1550,12 +1716,14 @@ export default function EditorPage() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => {
-                if (segments.length > 0) {
-                  handleSynthesize(segments[segments.length - 1].id);
+              onClick={async () => {
+                // If no segments yet but batch input exists, auto-parse first
+                if (segments.length === 0 && batchInput.trim()) {
+                  await parseBatchDialogue();
                 }
+                handleBatchSynthesize();
               }}
-              disabled={insufficientBalance}
+              disabled={insufficientBalance || (segments.length === 0 && !batchInput.trim())}
               className="px-5 py-2.5 bg-brand text-white text-sm font-semibold rounded-lg hover:bg-brand-2 transition-colors disabled:opacity-50"
             >
               提交合成任务
@@ -1564,45 +1732,93 @@ export default function EditorPage() {
         </div>
       </div>
 
-      {/* Segment list for duo */}
+      {/* Synthesis history for duo */}
       <div className="mt-8">
-        <h2 className="text-lg font-semibold text-text mb-4">历史片段</h2>
+        <h2 className="text-lg font-semibold text-text mb-4">合成历史</h2>
         {segments.length === 0 ? (
           <div className="bg-white border border-line rounded-xl p-10 text-center text-text-muted text-sm">
-            暂无历史片段
+            暂无合成记录
           </div>
         ) : (
-          segments.map((seg, idx) => (
-            <div key={seg.id} className="bg-white border border-line rounded-xl p-4 mb-3 hover:shadow-sm transition-shadow">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-sm font-semibold text-text">{seg.role?.name || seg.role_id}</span>
-                  <span className="text-xs text-text-muted ml-2">· {getEmotionLabel(seg.emotion)}</span>
-                  <span className="text-xs text-text-muted ml-2">· {seg.status}</span>
-                </div>
-                <div className="flex gap-1">
-                  <button onClick={() => handleSynthesize(seg.id)} disabled={insufficientBalance} className="p-1.5 text-brand hover:bg-bg-soft rounded-lg transition-colors disabled:opacity-30" title="合成">
-                    <Icons.Play />
-                  </button>
-                  <button onClick={() => handleDeleteSegment(seg.id)} className="p-1.5 text-danger hover:bg-red-50 rounded-lg transition-colors" title="删除">
-                    <Icons.Trash />
-                  </button>
-                </div>
-              </div>
-              <p className="text-sm text-text-muted mt-1 line-clamp-2">{seg.text}</p>
+          <div className="bg-white border border-line rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-text">本次合成</span>
+              <span className="text-xs text-text-muted">
+                {segments.filter(s => s.status === "completed").length}/{segments.length} 片段已完成
+              </span>
             </div>
-          ))
+            {synthesisAudio ? (
+              <div className="mb-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-green-600">●</span>
+                  <span className="text-sm font-medium text-text">合成完成</span>
+                </div>
+                <audio controls className="w-full h-10 rounded-lg" src={synthesisAudio.url} />
+              </div>
+            ) : fullAudioUrl ? (
+              <div className="mb-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-green-600">●</span>
+                  <span className="text-sm font-medium text-text">音频已生成</span>
+                </div>
+                <audio controls className="w-full h-10 rounded-lg">
+                  <source src={`${API_BASE}${fullAudioUrl}`} />
+                </audio>
+              </div>
+            ) : (
+              <div className="text-sm text-text-muted">
+                提交合成任务后，合成的完整音频将显示在这里
+              </div>
+            )}
+            <div className="mt-4 pt-4 border-t border-line-light">
+              <div className="text-xs text-text-muted mb-2">片段状态</div>
+              <div className="flex flex-wrap gap-2">
+                {segments.map((seg, idx) => (
+                  <span
+                    key={seg.id}
+                    className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md ${
+                      seg.status === "completed" ? "bg-green-50 text-green-700 border border-green-200" :
+                      seg.status === "failed" ? "bg-red-50 text-red-700 border border-red-200" :
+                      "bg-gray-50 text-gray-500 border border-gray-200"
+                    }`}
+                  >
+                    <span>#{idx + 1}</span>
+                    <span>{seg.role?.name || seg.role_id}</span>
+                    <span>{seg.status === "completed" ? "✓" : seg.status === "failed" ? "✗" : "⋯"}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Audio Player */}
-      {fullAudioUrl && (
-        <div className="mt-6 mb-4 bg-white border border-line rounded-xl p-4">
-          <audio controls className="w-full h-9 rounded-lg">
-            <source src={`${API_BASE}${fullAudioUrl}`} />
+      {/* Synthesis progress bar (duo mode) */}
+      {synthesizingId && (
+        <div className="mt-6 bg-bg-soft border border-line rounded-xl p-5">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm text-text-muted">正在合成语音，请稍候...</span>
+          </div>
+          <div className="w-full h-2 bg-line-light rounded-full overflow-hidden">
+            <div className="h-full bg-success rounded-full animate-pulse" style={{ width: "60%" }} />
+          </div>
+        </div>
+      )}
+
+      {/* Synthesis result audio player (duo mode) */}
+      {synthesisAudio && (
+        <div className="mt-6 p-5 bg-bg-soft border border-line rounded-xl">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-green-600">●</span>
+            <span className="text-sm font-semibold text-text">合成完成</span>
+          </div>
+          <audio controls className="w-full h-10 rounded-lg">
+            <source src={synthesisAudio.url} type="audio/wav" />
           </audio>
         </div>
       )}
+
     </div>
   );
 }

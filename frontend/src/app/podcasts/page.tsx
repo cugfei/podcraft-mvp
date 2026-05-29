@@ -36,8 +36,6 @@ export default function PodcastsPage() {
   const [podcasts, setPodcasts] = React.useState<PodcastProject[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
-  const [playingId, setPlayingId] = React.useState<string | null>(null);
-  const audioRef = React.useRef<HTMLAudioElement | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -68,26 +66,6 @@ export default function PodcastsPage() {
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? err.message : "删除失败";
       setError(msg);
-    }
-  };
-
-  const handlePlay = (p: PodcastProject) => {
-    const asset = p.final_audio_asset;
-    if (!asset?.url) {
-      alert("暂无音频文件");
-      return;
-    }
-    const url = getAudioSrc(asset.url);
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    if (playingId === p.id) {
-      audio.pause();
-      setPlayingId(null);
-    } else {
-      audio.src = url;
-      audio.play().catch(() => {});
-      setPlayingId(p.id);
     }
   };
 
@@ -166,12 +144,21 @@ export default function PodcastsPage() {
                   </Typography>
                   <Box sx={{ flex: 1 }} />
                   <Divider sx={{ my: 1.5 }} />
+                  {p.status === "completed" && p.final_audio_asset?.url && (
+                    <Box sx={{ mb: 1.5 }}>
+                      <audio
+                        controls
+                        preload="none"
+                        style={{ width: "100%", height: 36, borderRadius: 8 }}
+                        src={getAudioSrc(p.final_audio_asset.url)}
+                      >
+                        您的浏览器不支持音频播放
+                      </audio>
+                    </Box>
+                  )}
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                     {p.status === "completed" && (
-                      <>
-                        <IconButton size="small" sx={{ color: "var(--success)" }} onClick={() => handlePlay(p)}><PlayArrowIcon fontSize="small" /></IconButton>
-                        <IconButton size="small" onClick={() => handleDownload(p)}><DownloadIcon fontSize="small" /></IconButton>
-                      </>
+                      <IconButton size="small" onClick={() => handleDownload(p)}><DownloadIcon fontSize="small" /></IconButton>
                     )}
                     <IconButton size="small" component={Link} href={`/editor/${p.id}`}><EditIcon fontSize="small" /></IconButton>
                     <Box sx={{ flex: 1 }} />

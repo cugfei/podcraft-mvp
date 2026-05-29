@@ -216,6 +216,19 @@ def _mock_synthesize(segment_id: str):
         seg.updated_at = now
         db.commit()
 
+        # Deduct frozen credits
+        try:
+            from app.services.credit_service import deduct
+            proj = db.query(PodcastProject).join(PodcastScript).filter(
+                PodcastScript.id == seg.script_id
+            ).first()
+            if proj:
+                char_count = len(seg.text or "")
+                cost = max(20, char_count + 20)
+                deduct(db, proj.user_id, cost, f"segment:{segment_id}")
+        except Exception:
+            pass
+
         # Update project status if all segments completed
         try:
             from app.models.podcast import PodcastProject, PodcastScript
@@ -248,6 +261,17 @@ def _mock_synthesize(segment_id: str):
                 seg.error_message = str(e)[:500]
                 seg.updated_at = datetime.now(timezone.utc)
                 db.commit()
+                # Refund frozen credits on failure
+                from app.services.credit_service import refund
+                try:
+                    seg2 = db.query(PodcastSegment).filter(PodcastSegment.id == segment_id).first()
+                    if seg2:
+                        proj = seg2.script.project if seg2.script else None
+                        if proj:
+                            cost = max(20, len(seg2.text or "") + 20)
+                            refund(db, proj.user_id, cost, f"segment:{segment_id}")
+                except Exception:
+                    pass
         except Exception:
             db.rollback()
     finally:
@@ -530,6 +554,15 @@ def synthesize_segment(
     seg.error_message = None
     seg.updated_at = datetime.now(timezone.utc)
     db.commit()
+
+    # Freeze credits (cost = char_count + 20, minimum 20)
+    from app.services.credit_service import freeze
+    char_count = len(seg.text or "")
+    cost = max(20, char_count + 20)
+    if not freeze(db, current_user.id, cost, f"segment:{segment_id}"):
+        seg.status = "draft"
+        db.commit()
+        raise HTTPException(status_code=402, detail=f"积分不足，需要 {cost} 积分")
 
     # Launch background thread (MVP mock; Phase 4 will use Celery)
     t = threading.Thread(target=_mock_synthesize, args=(segment_id,), daemon=True)

@@ -75,7 +75,7 @@ class PodcastSegment(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "audio_asset": self.audio_asset.to_dict() if self.audio_asset else None,
-            "role": {"id": self.role.id, "name": self.role.name, "color": self.role.color} if self.role else None,
+            "role": {"id": self.role.id, "name": self.role.name, "role_key": self.role.role_key, "color": self.role.color} if self.role else None,
         }
 
     def __repr__(self) -> str:

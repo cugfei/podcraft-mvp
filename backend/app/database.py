@@ -18,6 +18,9 @@ engine = create_engine(
     settings.DATABASE_URL,
     connect_args=connect_args,
     echo=settings.DEBUG,
+    pool_size=20,
+    max_overflow=30,
+    pool_pre_ping=True,
 )
 
 # Session factory

@@ -22,7 +22,7 @@ security = HTTPBearer(auto_error=False)
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-AUDIO_DIR = Path(__file__).resolve().parent.parent.parent / "static" / "audio"
+AUDIO_DIR = Path(__file__).resolve().parent.parent.parent.parent / "static" / "audio"
 AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -79,7 +79,21 @@ def _get_role(project_id: str, role_key: str, db: Session) -> PodcastRole:
         .first()
     )
     if not role:
-        raise HTTPException(status_code=404, detail=f"Role '{role_key}' not found")
+        from datetime import datetime
+        now = datetime.utcnow()
+        role = PodcastRole(
+            project_id=project_id,
+            role_key=role_key,
+            name="主持人" if role_key == "host" else "嘉宾" if role_key == "guest" else role_key,
+            speed=1.0,
+            pitch=0,
+            volume=1.0,
+            color="#10b981" if role_key == "host" else "#3b82f6",
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(role)
+        db.flush()
     return role
 
 
@@ -99,10 +113,12 @@ def _generate_silence_wav(filepath: str, duration_s: int):
 
 
 def _mock_synthesize(segment_id: str):
-    """Background thread: mock TTS → generate WAV → update DB."""
+    """Background thread: real TTS (MiMo) → generate WAV → update DB."""
     from app.database import SessionLocal
     from app.models.segment import PodcastSegment
     from app.models.audio_asset import AudioAsset
+    from app.models.provider_config import load_provider_config
+    from app.services.mimo_tts_provider import MiMoTTSProvider
     from datetime import datetime, timezone
 
     db = SessionLocal()
@@ -116,11 +132,58 @@ def _mock_synthesize(segment_id: str):
         seg.updated_at = datetime.now(timezone.utc)
         db.commit()
 
-        # Generate mock WAV (silence, ~1s per 10 chars)
-        duration_s = max(1, len(seg.text or "") // 10)
-        filename = f"seg_{segment_id}.wav"
+        # Get voice settings from role
+        voice_id = "mimo_default"
+        if seg.role and seg.role.voice_id:
+            voice_id = seg.role.voice_id
+
+        # Try real TTS (MiMo → mock fallback)
+        audio_data = None
+        duration_ms = 0
+        provider_name = "mock"
+
+        # Load API key from DB config (fallback to env var)
+        provider_config = load_provider_config(db)
+        mimo_api_key = provider_config.get("mimo_api_key", "") or ""
+        mimo_api_base = provider_config.get("mimo_api_base", "")
+
+        if mimo_api_key:
+            try:
+                mimo = MiMoTTSProvider(api_key=mimo_api_key)
+                if mimo_api_base:
+                    mimo.base_url = mimo_api_base
+                result = mimo.synthesize(
+                    text=seg.text or "",
+                    voice_id=voice_id,
+                )
+                audio_data = result["audio_data"]
+                duration_ms = result["duration_ms"]
+                provider_name = "mimo"
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning("MiMo TTS failed, using mock: %s", e)
+
+        if audio_data is None:
+            # Mock fallback: generate silence
+            duration_s = max(1, len(seg.text or "") // 10)
+            duration_ms = duration_s * 1000
+            import io, wave, struct
+            sample_rate = 22050
+            num_samples = sample_rate * duration_s
+            wav_buffer = io.BytesIO()
+            with wave.open(wav_buffer, "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(sample_rate)
+                wav.writeframes(b"\x00\x00" * num_samples)
+            audio_data = wav_buffer.getvalue()
+
+        # Save audio to file
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{provider_name}_{segment_id}_{timestamp}.wav"
         filepath = AUDIO_DIR / filename
-        _generate_silence_wav(str(filepath), duration_s)
+        with open(filepath, "wb") as f:
+            f.write(audio_data)
 
         file_size = filepath.stat().st_size
         now = datetime.now(timezone.utc)
@@ -135,7 +198,7 @@ def _mock_synthesize(segment_id: str):
                 segment_id=seg.id,
                 type="segment",
                 format="wav",
-                duration_ms=duration_s * 1000,
+                duration_ms=duration_ms,
                 file_size=file_size,
                 url=f"/static/audio/{filename}",
                 created_at=now,
@@ -146,12 +209,36 @@ def _mock_synthesize(segment_id: str):
         else:
             asset.url = f"/static/audio/{filename}"
             asset.file_size = file_size
-            asset.duration_ms = duration_s * 1000
+            asset.duration_ms = duration_ms
             asset.updated_at = now
 
         seg.status = "completed"
         seg.updated_at = now
         db.commit()
+
+        # Update project status if all segments completed
+        try:
+            from app.models.podcast import PodcastProject, PodcastScript
+            script = db.query(PodcastScript).filter(PodcastScript.id == seg.script_id).first()
+            if script:
+                total = db.query(PodcastSegment).filter(
+                    PodcastSegment.script_id == script.id
+                ).count()
+                done = db.query(PodcastSegment).filter(
+                    PodcastSegment.script_id == script.id,
+                    PodcastSegment.status == "completed",
+                ).count()
+                if total > 0 and total == done:
+                    project = db.query(PodcastProject).filter(
+                        PodcastProject.id == script.project_id
+                    ).first()
+                    if project and project.status == "draft":
+                        project.status = "completed"
+                        project.final_audio_asset_id = asset.id
+                        project.updated_at = now
+                        db.commit()
+        except Exception:
+            db.rollback()
     except Exception as e:
         db.rollback()
         try:
@@ -210,7 +297,7 @@ def list_segments(
     )
     return {
         "code": 0,
-        "data": [s.to_dict(deep=True) for s in segments],
+        "data": [s.to_dict() for s in segments],
         "message": "ok",
     }
 
@@ -260,6 +347,29 @@ def create_segment(
 
 # ---------------------------------------------------------------------------
 # Update segment
+# ---------------------------------------------------------------------------
+@router.get("/segments/{segment_id}")
+def get_segment(
+    segment_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_session),
+):
+    """Get a single segment by ID."""
+    seg = (
+        db.query(PodcastSegment)
+        .join(PodcastScript)
+        .join(PodcastProject)
+        .filter(
+            PodcastSegment.id == segment_id,
+            PodcastProject.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not seg:
+        raise HTTPException(status_code=404, detail="Segment not found")
+    return {"code": 0, "data": seg.to_dict(), "message": "ok"}
+
+
 # ---------------------------------------------------------------------------
 @router.put("/segments/{segment_id}")
 def update_segment(

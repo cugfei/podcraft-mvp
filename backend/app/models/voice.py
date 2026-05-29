@@ -17,6 +17,7 @@ class VoicePreset(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String(100), nullable=False)
+    provider = Column(String(50), nullable=True)  # mimo / minimax / edge-tts
     gender = Column(String(10), nullable=True)  # male / female
     style = Column(String(50), nullable=True)
     scenario = Column(String(100), nullable=True)
@@ -41,6 +42,24 @@ class VoicePreset(Base):
 
     def __repr__(self) -> str:
         return f"<VoicePreset(id={self.id!r}, name={self.name!r})>"
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "provider": self.provider,
+            "gender": self.gender,
+            "style": self.style,
+            "scenario": self.scenario,
+            "provider_voice_id": self.provider_voice_id,
+            "language": self.language,
+            "voice_params": self.voice_params,
+            "is_cloned": self.is_cloned,
+            "usage_count": self.usage_count,
+            "preview_audio_url": self.preview_audio_url,
+            "status": self.status,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
 
 
 class UserPreset(Base):

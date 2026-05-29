@@ -1,7 +1,7 @@
-"""Synthesis service – create and track TTS synthesis tasks (Mock TTS for MVP)."""
+"""Synthesis service – create and track TTS synthesis tasks."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -12,6 +12,7 @@ from app.models.podcast import PodcastProject, PodcastScript
 from app.models.segment import PodcastSegment
 from app.models.user import User
 from app.utils.mock_tts import mock_synthesize
+from app.services.mimo_tts_provider import get_mimo_provider, MiMoTTSProvider
 
 logger = logging.getLogger(__name__)
 
@@ -97,23 +98,68 @@ def create_synthesis_task(
 
                 # Get voice settings from role
                 role = segment.role
-                voice_id = role.voice_id if role else "zh-CN-XiaoxiaoNeural"
+                voice_id = role.voice_id if role else "mimo_default"
                 speed = float(role.speed) if role and role.speed else 1.0
                 pitch = int(role.pitch) if role and role.pitch else 0
                 emotion = segment.emotion or "neutral"
 
-                # Call Mock TTS
-                audio_asset = mock_synthesize(
-                    db=db,
-                    project_id=project_id,
-                    segment_id=segment.id,
-                    text=segment.text,
-                    voice_id=voice_id,
-                    speed=speed,
-                    pitch=pitch,
-                    volume=1.0,
-                    emotion=emotion,
-                )
+                # Try real MiMo TTS first, fallback to mock
+                try:
+                    mimo = get_mimo_provider()
+                    result = mimo.synthesize(
+                        text=segment.text,
+                        voice_id=voice_id,
+                        speed=speed,
+                        pitch=pitch,
+                        volume=1.0,
+                        emotion=emotion,
+                    )
+
+                    # Save audio file
+                    import uuid
+                    from pathlib import Path
+                    from app.utils.mock_tts import AUDIO_DIR
+
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"mimo_{project_id}_{segment.id}_{timestamp}.wav"
+                    file_path = AUDIO_DIR / filename
+                    with open(file_path, "wb") as f:
+                        f.write(result["audio_data"])
+
+                    file_size = file_path.stat().st_size
+                    relative_url = f"/static/audio/{filename}"
+
+                    # Create AudioAsset record
+                    audio_asset = AudioAsset(
+                        project_id=project_id,
+                        segment_id=segment.id,
+                        type="segment",
+                        format="wav",
+                        duration_ms=result["duration_ms"],
+                        file_size=file_size,
+                        url=relative_url,
+                        version=1,
+                        expires_at=datetime.now() + timedelta(days=30),
+                    )
+                    db.add(audio_asset)
+                    db.flush()
+
+                    task.provider_used = "mimo"
+
+                except Exception as mimo_err:
+                    logger.warning("MiMo TTS failed, falling back to mock: %s", mimo_err)
+                    # Fallback to mock TTS
+                    audio_asset = mock_synthesize(
+                        db=db,
+                        project_id=project_id,
+                        segment_id=segment.id,
+                        text=segment.text,
+                        voice_id=voice_id,
+                        speed=speed,
+                        pitch=pitch,
+                        volume=1.0,
+                        emotion=emotion,
+                    )
 
                 # Update segment
                 segment.audio_asset_id = audio_asset.id

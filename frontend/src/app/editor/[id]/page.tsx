@@ -2,61 +2,7 @@
 
 import * as React from "react";
 import { useRouter, useParams } from "next/navigation";
-import Container from "@mui/material/Container";
-import Typography from "@mui/material/Typography";
-import Box from "@mui/material/Box";
-import TextField from "@mui/material/TextField";
-import Button from "@mui/material/Button";
-import Alert from "@mui/material/Alert";
-import CircularProgress from "@mui/material/CircularProgress";
-import Divider from "@mui/material/Divider";
-import Paper from "@mui/material/Paper";
-import Stack from "@mui/material/Stack";
-import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
-import Checkbox from "@mui/material/Checkbox";
-import Menu from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Switch from "@mui/material/Switch";
-import Dialog from "@mui/material/Dialog";
-import DialogTitle from "@mui/material/DialogTitle";
-import DialogContent from "@mui/material/DialogContent";
-import DialogActions from "@mui/material/DialogActions";
-import Snackbar from "@mui/material/Snackbar";
-import AudioPlayer from "@/components/AudioPlayer";
-import UndoIcon from "@mui/icons-material/Undo";
-import RedoIcon from "@mui/icons-material/Redo";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import FormatBoldIcon from "@mui/icons-material/FormatBold";
-import FormatItalicIcon from "@mui/icons-material/FormatItalic";
-import FlagIcon from "@mui/icons-material/Flag";
-import SaveIcon from "@mui/icons-material/Save";
-import CancelIcon from "@mui/icons-material/Cancel";
-import DeleteIcon from "@mui/icons-material/Delete";
-import AddIcon from "@mui/icons-material/Add";
-import SettingsIcon from "@mui/icons-material/Settings";
-import EditIcon from "@mui/icons-material/Edit";
-import Drawer from "@mui/material/Drawer";
-import { useRequireAuth } from "@/hooks/useRequireAuth";
-import {
-  getPodcast,
-  updateScript,
-  listSegments,
-  createSegment,
-  updateSegment,
-  deleteSegment,
-  reorderSegments,
-  synthesizeSegment,
-  rebuildAudio,
-  changeVoice,
-  getSegment,
-  getAudioSrc,
-  getCreditBalance,
-  ApiError,
-  PodcastProject,
-  PodcastSegment,
-} from "@/lib/api";
+import Link from "next/link";
 
 // ---------------------------------------------------------------------------
 // Constants — markers per PRD §7.5
@@ -70,14 +16,12 @@ const EMOTION_OPTIONS = [
   { value: "excited", label: "兴奋" },
 ];
 
-// Pause markers: <#N#> where N = seconds
 const PAUSE_MARKERS = [
-  { tag: "<#0.5#>", label: "短停顿 0.5s" },
-  { tag: "<#1.0#>", label: "中停顿 1.0s" },
-  { tag: "<#2.0#>", label: "长停顿 2.0s" },
+  { tag: "<#0.5#>", label: "短停顿" },
+  { tag: "<#1.0#>", label: "中停顿" },
+  { tag: "<#2.0#>", label: "长停顿" },
 ];
 
-// Common multi-pronunciation characters for the selector
 const MULTI_PRONUNCIATION = [
   { char: "行", readings: ["xíng（行走）", "háng（行业）"] },
   { char: "乐", readings: ["lè（快乐）", "yuè（音乐）"] },
@@ -103,8 +47,168 @@ const AI_OPTIMIZE_PROMPTS = [
 ];
 
 // ---------------------------------------------------------------------------
+// SVG Icon Components
+// ---------------------------------------------------------------------------
+const Icons = {
+  Logo: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+      <path d="M6 18l6-12 6 12M8.5 13h7"/>
+    </svg>
+  ),
+  Mic: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4">
+      <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
+      <path d="M19 10v2a7 7 0 01-14 0v-2"/>
+      <line x1="12" y1="19" x2="12" y2="23"/>
+      <line x1="8" y1="23" x2="16" y2="23"/>
+    </svg>
+  ),
+  Chat: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4">
+      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+    </svg>
+  ),
+  Settings: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+    </svg>
+  ),
+  Pause: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+      <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
+    </svg>
+  ),
+  Polyphone: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+      <polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/>
+    </svg>
+  ),
+  Tone: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+      <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
+      <path d="M19 10v2a7 7 0 01-14 0v-2"/>
+      <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+    </svg>
+  ),
+  Info: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+    </svg>
+  ),
+  Clear: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-3 h-3">
+      <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+    </svg>
+  ),
+  Upload: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-3 h-3">
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+    </svg>
+  ),
+  Plus: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+  ),
+  Trash: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5">
+      <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+    </svg>
+  ),
+  Play: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4">
+      <polygon points="5 3 19 12 5 21 5 3"/>
+    </svg>
+  ),
+  Undo: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4">
+      <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/>
+    </svg>
+  ),
+  Redo: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4">
+      <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+    </svg>
+  ),
+  Edit: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5">
+      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+    </svg>
+  ),
+  AI: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5">
+      <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+    </svg>
+  ),
+  Save: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5">
+      <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+    </svg>
+  ),
+  Cancel: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5">
+      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+    </svg>
+  ),
+  History: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4">
+      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+    </svg>
+  ),
+  User: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5">
+      <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+    </svg>
+  ),
+  Bold: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5">
+      <path d="M6 4h8a4 4 0 014 4 4 4 0 01-4 4H6z"/><path d="M6 12h9a4 4 0 014 4 4 4 0 01-4 4H6z"/>
+    </svg>
+  ),
+  Italic: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5">
+      <line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/>
+    </svg>
+  ),
+  Flag: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-3.5 h-3.5">
+      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>
+    </svg>
+  ),
+};
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+interface PodcastRole {
+  id: string;
+  role_key: string;
+  name: string;
+  voice_id?: string;
+  color?: string;
+}
+
+interface PodcastProject {
+  id: string;
+  title: string;
+  status: string;
+  mode: string;
+  roles?: PodcastRole[];
+}
+
+interface PodcastSegment {
+  id: string;
+  text: string;
+  role_id?: string;
+  role?: { name: string; color?: string };
+  emotion?: string;
+  pause_after_ms?: number;
+  status: string;
+  audio_asset?: { id: string; url: string; duration_ms: number; format: string } | null;
+  error_message?: string;
+}
+
 interface EditingState {
   [segId: string]: {
     text: string;
@@ -114,10 +218,44 @@ interface EditingState {
 }
 
 // ---------------------------------------------------------------------------
+// API helpers (simplified — keep your existing imports)
+// ---------------------------------------------------------------------------
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8033";
+
+async function apiFetch<T>(path: string, opts?: RequestInit): Promise<T> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  if (!token) {
+    throw new Error("未登录，请先登录后再试");
+  }
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+    ...(opts?.headers as Record<string, string> || {}),
+  };
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...opts, headers });
+  } catch (fetchErr) {
+    throw new Error(`网络请求失败，请检查后端服务是否运行 (${API_BASE})`);
+  }
+  const body = await res.json().catch(() => ({}));
+
+  // Handle API response format: { code: 0, data: T, message: string }
+  if (body.code !== undefined && body.code !== 0) {
+    throw new Error(body.message || `API error ${body.code}`);
+  }
+
+  if (!res.ok) {
+    throw new Error(body.detail || body.message || `API error ${res.status}`);
+  }
+
+  return body.data !== undefined ? body.data : body;
+}
+
+// ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
 export default function EditorPage() {
-  useRequireAuth();
   const params = useParams();
   const router = useRouter();
   const projectId = params.id as string;
@@ -129,9 +267,9 @@ export default function EditorPage() {
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState("");
   const [successMsg, setSuccessMsg] = React.useState("");
-
-  // Balance & credit estimation
   const [balance, setBalance] = React.useState<number | null>(null);
+  const [voices, setVoices] = React.useState<Array<{id: string; name: string; provider: string; provider_voice_id: string; gender: string; language: string}>>([]);
+  const [voiceModel, setVoiceModel] = React.useState("mimo");
 
   // Editing state
   const [editingSegId, setEditingSegId] = React.useState<string | null>(null);
@@ -155,43 +293,65 @@ export default function EditorPage() {
   const [aiCustomPrompt, setAiCustomPrompt] = React.useState("");
   const [aiLoading, setAiLoading] = React.useState(false);
 
-  // Mark insert menu
-  const [markMenuAnchor, setMarkMenuAnchor] = React.useState<null | HTMLElement>(null);
+  // Mark insertion
+  const [markMenuOpen, setMarkMenuOpen] = React.useState(false);
   const [markTargetSegId, setMarkTargetSegId] = React.useState<string | null>(null);
-  const [markInsertCallback, setMarkInsertCallback] = React.useState<null | ((tag: string) => void)>(null);
 
-  // Multi-pronunciation selector
+  // Multi-pronunciation
   const [multiProDialogOpen, setMultiProDialogOpen] = React.useState(false);
   const [multiProChar, setMultiProChar] = React.useState("");
   const [multiProReading, setMultiProReading] = React.useState("");
 
-  // Audio / Rebuild
+  // Audio
   const [fullAudioUrl, setFullAudioUrl] = React.useState<string | null>(null);
-  const [fullAudioFilename, setFullAudioFilename] = React.useState<string>("");
+  const [fullAudioFilename, setFullAudioFilename] = React.useState("");
   const [buildLoading, setBuildLoading] = React.useState(false);
+  const [synthesizingId, setSynthesizingId] = React.useState<string | null>(null);
+  const [synthesisAudio, setSynthesisAudio] = React.useState<{url: string; filename: string} | null>(null);
 
-  // Right panel (voice settings)
-  const [rightPanelOpen, setRightPanelOpen] = React.useState(false);
+  // Right panel (settings) for solo mode
+  const [rightPanelTab, setRightPanelTab] = React.useState<"settings" | "history">("settings");
 
-  // Polling: track segments that are queued/synthesizing
+  // Polling
   const pollingRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Undo/redo (simple client-side)
+  // Undo/redo
   const undoStack = React.useRef<Array<{ segs: PodcastSegment[] }>>([]);
   const redoStack = React.useRef<Array<{ segs: PodcastSegment[] }>>([]);
 
-  // -----------------------------------------------------------------------
-  // Computed values
-  // -----------------------------------------------------------------------
+  // Batch input for duo mode
+  const [batchInput, setBatchInput] = React.useState("");
+
+  // Voice settings
+  const [voiceSettings, setVoiceSettings] = React.useState({
+    speed: 1.0,
+    pitch: 0,
+    volume: 1.0,
+    tonePitch: 0,
+    intensity: 0,
+    timbre: 0,
+    effect: "none",
+    langEnhance: "auto",
+    voiceType: "official" as "official" | "clone",
+    voiceId: "",
+  });
+
+  // Computed
+  const isDuoMode = project?.mode === "duo";
   const totalChars = React.useMemo(() => {
+    // Solo mode: count input text only
+    if (!isDuoMode) {
+      return newSegText?.length || 0;
+    }
+    // Duo mode: count segments
     if (editingSegId && editing[editingSegId]) {
       return editing[editingSegId].text.length;
     }
-    // Return total chars across all segments when not editing
-    return segments.reduce((sum, s) => sum + (s.text?.length || 0), 0);
-  }, [segments, editing, editingSegId]);
-
-  const estimatedCredits = totalChars + 20; // chars×1 + script generation 20
+    const segmentChars = segments.reduce((sum, s) => sum + (s.text?.length || 0), 0);
+    const inputChars = newSegText?.length || 0;
+    return segmentChars + inputChars;
+  }, [segments, editing, editingSegId, newSegText, isDuoMode]);
+  const estimatedCredits = totalChars + 20;
   const insufficientBalance = balance !== null && estimatedCredits > balance;
 
   // -----------------------------------------------------------------------
@@ -208,28 +368,36 @@ export default function EditorPage() {
     setError("");
     try {
       const [proj, segs] = await Promise.all([
-        getPodcast(projectId),
-        listSegments(projectId),
+        apiFetch<PodcastProject>(`/api/v1/podcasts/${projectId}`),
+        apiFetch<PodcastSegment[]>(`/api/v1/segments/podcasts/${projectId}/segments`),
       ]);
       setProject(proj);
       setSegments(segs);
       undoStack.current = [];
       redoStack.current = [];
     } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : "加载失败";
-      setError(msg);
+      setError(err instanceof Error ? err.message : "加载失败");
     } finally {
       setLoading(false);
     }
   }, [projectId]);
 
-  // Load balance
   const loadBalance = React.useCallback(async () => {
     try {
-      const data = await getCreditBalance();
+      const data = await apiFetch<{ balance: number }>("/api/v1/credits/balance");
       setBalance(data.balance);
     } catch {
-      setBalance(500); // mock for dev
+      setBalance(500);
+    }
+  }, []);
+
+  const loadVoices = React.useCallback(async (provider?: string) => {
+    try {
+      const url = provider ? `/api/v1/voices?provider=${provider}` : "/api/v1/voices";
+      const data = await apiFetch<Array<{id: string; name: string; provider: string; provider_voice_id: string; gender: string; language: string}>>(url);
+      setVoices(data);
+    } catch {
+      setVoices([]);
     }
   }, []);
 
@@ -237,10 +405,23 @@ export default function EditorPage() {
     if (!projectId) return;
     loadData();
     loadBalance();
-  }, [projectId, loadData, loadBalance]);
+    loadVoices(voiceModel);
+  }, [projectId, loadData, loadBalance, loadVoices, voiceModel]);
+
+  // Auto-display audio player for solo mode when completed segment exists
+  React.useEffect(() => {
+    if (isDuoMode || segments.length === 0) return;
+    const completed = segments.find(s => s.status === "completed" && s.audio_asset?.url);
+    if (completed && completed.audio_asset?.url) {
+      setSynthesisAudio({
+        url: `${API_BASE}${completed.audio_asset.url}`,
+        filename: `segment_${completed.id}.wav`,
+      });
+    }
+  }, [segments, isDuoMode]);
 
   // -----------------------------------------------------------------------
-  // Single segment editing
+  // Segment operations
   // -----------------------------------------------------------------------
   const startEditing = (seg: PodcastSegment) => {
     setEditingSegId(seg.id);
@@ -255,12 +436,14 @@ export default function EditorPage() {
   };
 
   const cancelEditing = () => {
+    if (editingSegId) {
+      setEditing((prev) => {
+        const next = { ...prev };
+        delete next[editingSegId];
+        return next;
+      });
+    }
     setEditingSegId(null);
-    setEditing((prev) => {
-      const next = { ...prev };
-      delete next[editingSegId!];
-      return next;
-    });
   };
 
   const saveEditing = async (segId: string) => {
@@ -270,19 +453,21 @@ export default function EditorPage() {
     setError("");
     pushUndo(segments);
     try {
-      const updated = await updateSegment(segId, {
-        text: draft.text,
-        emotion: draft.emotion || undefined,
-        pause_after_ms: draft.pause_after_ms,
+      const updated = await apiFetch<PodcastSegment>(`/api/v1/segments/segments/${segId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          text: draft.text,
+          emotion: draft.emotion || undefined,
+          pause_after_ms: draft.pause_after_ms,
+        }),
       });
       setSegments((prev) =>
         prev.map((s) => (s.id === segId ? { ...s, ...updated, status: "draft" as const } : s))
       );
       setEditingSegId(null);
-      setSuccessMsg("片段已保存（状态：draft）");
+      setSuccessMsg("片段已保存");
     } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : "保存失败";
-      setError(msg);
+      setError(err instanceof Error ? err.message : "保存失败");
     } finally {
       setSaving(false);
     }
@@ -295,59 +480,38 @@ export default function EditorPage() {
     }));
   };
 
-  // -----------------------------------------------------------------------
-  // Mark insertion helpers
-  // -----------------------------------------------------------------------
-  const insertMarkToEditing = (segId: string, tag: string) => {
-    const draft = editing[segId];
-    if (!draft) return;
-    handleEditingChange(segId, "text", draft.text + tag);
-  };
-
-  const insertMarkToNewSeg = (tag: string) => {
-    setNewSegText((prev) => prev + tag);
-  };
-
-  const handleMarkSelect = (tag: string) => {
-    setMarkMenuAnchor(null);
-    if (markInsertCallback) {
-      markInsertCallback(tag);
-      setMarkInsertCallback(null);
-      return;
-    }
-    if (markTargetSegId) {
-      insertMarkToEditing(markTargetSegId, tag);
-      setMarkTargetSegId(null);
+  const insertMark = (tag: string) => {
+    setMarkMenuOpen(false);
+    if (markTargetSegId && editing[markTargetSegId]) {
+      handleEditingChange(markTargetSegId, "text", editing[markTargetSegId].text + tag);
     } else {
-      insertMarkToNewSeg(tag);
+      setNewSegText((prev) => prev + tag);
     }
+    setMarkTargetSegId(null);
   };
 
-  // -----------------------------------------------------------------------
-  // Multi-pronunciation handler
-  // -----------------------------------------------------------------------
   const handleMultiProConfirm = () => {
     if (!multiProChar || !multiProReading) return;
     const tag = `【${multiProChar}(${multiProReading})】`;
-    handleMarkSelect(tag);
+    insertMark(tag);
     setMultiProDialogOpen(false);
     setMultiProChar("");
     setMultiProReading("");
   };
 
-  // -----------------------------------------------------------------------
-  // Add segment
-  // -----------------------------------------------------------------------
   const handleAddSegment = async () => {
     if (!newSegText.trim()) return;
     setError("");
     pushUndo(segments);
     try {
-      const seg = await createSegment(projectId, {
-        role_key: newSegRole,
-        text: newSegText,
-        emotion: newSegEmotion || undefined,
-        pause_after_ms: newSegPause,
+      const seg = await apiFetch<PodcastSegment>(`/api/v1/segments/podcasts/${projectId}/segments`, {
+        method: "POST",
+        body: JSON.stringify({
+          role_key: newSegRole,
+          text: newSegText,
+          emotion: newSegEmotion || undefined,
+          pause_after_ms: newSegPause,
+        }),
       });
       setSegments((prev) => [...prev, { ...seg, status: "draft" }]);
       setNewSegText("");
@@ -355,31 +519,24 @@ export default function EditorPage() {
       setNewSegPause(700);
       setSuccessMsg("片段已添加");
     } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : "添加失败";
-      setError(msg);
+      setError(err instanceof Error ? err.message : "添加失败");
     }
   };
 
-  // -----------------------------------------------------------------------
-  // Delete segment
-  // -----------------------------------------------------------------------
   const handleDeleteSegment = async (segId: string) => {
     if (!confirm("确定删除该片段？")) return;
     setError("");
     pushUndo(segments);
     try {
-      await deleteSegment(segId);
+      await apiFetch(`/api/v1/segments/segments/${segId}`, { method: "DELETE" });
       setSegments((prev) => prev.filter((s) => s.id !== segId));
       setSuccessMsg("片段已删除");
     } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : "删除失败";
-      setError(msg);
+      setError(err instanceof Error ? err.message : "删除失败");
     }
   };
 
-  // -----------------------------------------------------------------------
-  // Bulk actions
-  // -----------------------------------------------------------------------
+  // Bulk
   const handleBulkSave = async () => {
     if (selectedIds.size === 0) return;
     setSaving(true);
@@ -387,13 +544,14 @@ export default function EditorPage() {
     pushUndo(segments);
     try {
       const updates = Array.from(selectedIds).map(async (segId) => {
-        const seg = segments.find((s) => s.id === segId);
-        if (!seg) return null;
         const patch: Record<string, unknown> = {};
         if (bulkEmotion) patch.emotion = bulkEmotion;
         if (bulkPause) patch.pause_after_ms = parseInt(bulkPause, 10);
         if (Object.keys(patch).length === 0) return null;
-        return updateSegment(segId, patch);
+        return apiFetch<PodcastSegment>(`/api/v1/segments/segments/${segId}`, {
+          method: "PATCH",
+          body: JSON.stringify(patch),
+        });
       });
       const results = await Promise.all(updates);
       setSegments((prev) =>
@@ -407,8 +565,7 @@ export default function EditorPage() {
       setBulkPause("");
       setSuccessMsg("批量更新完成");
     } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : "批量保存失败";
-      setError(msg);
+      setError(err instanceof Error ? err.message : "批量保存失败");
     } finally {
       setSaving(false);
     }
@@ -420,13 +577,14 @@ export default function EditorPage() {
     setError("");
     pushUndo(segments);
     try {
-      await Promise.all(Array.from(selectedIds).map((id) => deleteSegment(id)));
+      await Promise.all(Array.from(selectedIds).map((id) =>
+        apiFetch(`/api/v1/segments/segments/${id}`, { method: "DELETE" })
+      ));
       setSegments((prev) => prev.filter((s) => !selectedIds.has(s.id)));
       setSelectedIds(new Set());
       setSuccessMsg("批量删除完成");
     } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : "批量删除失败";
-      setError(msg);
+      setError(err instanceof Error ? err.message : "批量删除失败");
     }
   };
 
@@ -438,15 +596,12 @@ export default function EditorPage() {
     }
   };
 
-  // -----------------------------------------------------------------------
   // Undo / Redo
-  // -----------------------------------------------------------------------
   const handleUndo = () => {
     const prev = undoStack.current.pop();
     if (!prev) return;
     redoStack.current.push({ segs: JSON.parse(JSON.stringify(segments)) });
     setSegments(prev.segs);
-    setSuccessMsg("已撤销");
   };
 
   const handleRedo = () => {
@@ -454,12 +609,9 @@ export default function EditorPage() {
     if (!next) return;
     undoStack.current.push({ segs: JSON.parse(JSON.stringify(segments)) });
     setSegments(next.segs);
-    setSuccessMsg("已重做");
   };
 
-  // -----------------------------------------------------------------------
   // AI optimize
-  // -----------------------------------------------------------------------
   const handleAiOptimize = async () => {
     if (!aiSegId || !aiPrompt) return;
     setAiLoading(true);
@@ -468,9 +620,11 @@ export default function EditorPage() {
     try {
       const seg = segments.find((s) => s.id === aiSegId);
       if (!seg) return;
-      // Mock: prepend AI-optimized note
       const newText = `[AI优化：${promptToUse}]\n${seg.text}`;
-      const updated = await updateSegment(aiSegId, { text: newText });
+      const updated = await apiFetch<PodcastSegment>(`/api/segments/${aiSegId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ text: newText }),
+      });
       setSegments((prev) =>
         prev.map((s) => (s.id === aiSegId ? { ...s, ...updated, status: "draft" } : s))
       );
@@ -478,33 +632,169 @@ export default function EditorPage() {
       setAiSegId(null);
       setAiPrompt("");
       setAiCustomPrompt("");
-      setSuccessMsg("AI 优化完成（演示模式）");
+      setSuccessMsg("AI 优化完成");
     } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : "AI 优化失败";
-      setError(msg);
+      setError(err instanceof Error ? err.message : "AI 优化失败");
     } finally {
       setAiLoading(false);
     }
   };
 
-  // -----------------------------------------------------------------------
   // Synthesize
-  // -----------------------------------------------------------------------
   const handleSynthesize = async (segId: string) => {
     if (insufficientBalance) {
       setError("余额不足，请充值后再试");
       return;
     }
     setError("");
+    setSynthesizingId(segId);
+    setSynthesisAudio(null);
     try {
-      await synthesizeSegment(segId);
-      setSuccessMsg("已加入合成队列");
-      loadData();
+      await apiFetch(`/api/v1/segments/segments/${segId}/synthesize`, { method: "POST" });
+      // Update local segment status so polling can detect it
+      setSegments((prev) =>
+        prev.map((s) => (s.id === segId ? { ...s, status: "queued" as const } : s))
+      );
+      setSuccessMsg("合成已开始");
     } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : "合成失败";
-      setError(msg);
+      setError(err instanceof Error ? err.message : "合成失败");
+      setSynthesizingId(null);
     }
   };
+
+  // Build audio
+  const handleBuildAudio = async () => {
+    setBuildLoading(true);
+    setError("");
+    try {
+      const result = await apiFetch<{ url: string }>(`/api/v1/podcasts/${projectId}/rebuild-audio`, {
+        method: "POST",
+      });
+      setFullAudioUrl(result.url);
+      setFullAudioFilename(`full_${projectId}.wav`);
+      setSuccessMsg("音频拼接完成");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "拼接失败");
+    } finally {
+      setBuildLoading(false);
+    }
+  };
+
+  // Parse batch dialogue (duo mode)
+  const parseBatchDialogue = async () => {
+    if (!batchInput.trim()) return;
+    const lines = batchInput.split("\n");
+    let currentRole: string | null = null;
+    let currentText = "";
+    const dialogues: Array<{ role: string; text: string }> = [];
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+      const roleMatch = trimmed.match(/^([AB])[：:]\s*(.*)/);
+      if (roleMatch) {
+        if (currentRole && currentText) {
+          dialogues.push({ role: currentRole, text: currentText });
+        }
+        currentRole = roleMatch[1];
+        currentText = roleMatch[2];
+      } else if (currentRole) {
+        currentText += " " + trimmed;
+      }
+    });
+
+    if (currentRole && currentText) {
+      dialogues.push({ role: currentRole, text: currentText });
+    }
+
+    if (dialogues.length === 0) {
+      setError("未解析到有效的对话内容，请使用 A: 或 B: 开头标识角色");
+      return;
+    }
+
+    // Create segments via API
+    setError("");
+    pushUndo(segments);
+    try {
+      const newSegments = await Promise.all(
+        dialogues.map((d) => {
+          const roleKey = d.role === "A" ? "host" : "guest";
+          return apiFetch<PodcastSegment>(`/api/v1/segments/podcasts/${projectId}/segments`, {
+            method: "POST",
+            body: JSON.stringify({
+              role_key: roleKey,
+              text: d.text,
+            }),
+          });
+        })
+      );
+      setSegments((prev) => [...prev, ...newSegments.map((s) => ({ ...s, status: "draft" as const }))]);
+      setBatchInput("");
+      setSuccessMsg(`已解析并创建 ${dialogues.length} 条对话`);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "创建对话失败");
+    }
+  };
+
+  // -----------------------------------------------------------------------
+  // Polling
+  // -----------------------------------------------------------------------
+  // Use a ref to track active segment IDs to avoid closure issues with setInterval
+  const activeSegmentIdsRef = React.useRef<string[]>([]);
+
+  React.useEffect(() => {
+    const active = segments
+      .filter((s) => s.status === "queued" || s.status === "synthesizing")
+      .map((s) => s.id);
+
+    if (active.length === 0) {
+      activeSegmentIdsRef.current = [];
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      return;
+    }
+
+    activeSegmentIdsRef.current = active;
+
+    if (pollingRef.current) return;
+    pollingRef.current = setInterval(async () => {
+      try {
+        const ids = activeSegmentIdsRef.current;
+        if (ids.length === 0) return;
+
+        const updated = await Promise.all(
+          ids.map((id) => apiFetch<PodcastSegment>(`/api/v1/segments/segments/${id}`))
+        );
+        setSegments((prev) =>
+          prev.map((s) => {
+            const u = updated.find((r) => r && r.id === s.id);
+            return u ? { ...s, ...u } : s;
+          })
+        );
+        // Check if any completed
+        for (const u of updated) {
+          if (u && u.status === "completed" && u.audio_asset?.url) {
+            setSynthesizingId(null);
+            const audioUrl = `${API_BASE}${u.audio_asset.url}`;
+            setSynthesisAudio({ url: audioUrl, filename: `segment_${u.id}.wav` });
+            setSuccessMsg("合成完成！");
+          } else if (u && u.status === "failed") {
+            setSynthesizingId(null);
+            setError(u.error_message || "合成失败");
+          }
+        }
+      } catch { /* ignore */ }
+    }, 3000);
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [segments]);
 
   // -----------------------------------------------------------------------
   // Render helpers
@@ -519,735 +809,800 @@ export default function EditorPage() {
     return EMOTION_OPTIONS.find((o) => o.value === emotion)?.label || emotion;
   };
 
+  const updateVoiceSetting = (key: string, value: unknown) => {
+    setVoiceSettings((prev) => ({ ...prev, [key]: value }));
+  };
+
+  // Helper for slider value access
+  const getVoiceNum = (key: string): number => {
+    return (voiceSettings as Record<string, unknown>)[key] as number;
+  };
+
   // -----------------------------------------------------------------------
-  // Loading / Error states
+  // Loading state
   // -----------------------------------------------------------------------
   if (loading) {
     return (
-      <Container sx={{ py: 8, textAlign: "center" }}>
-        <CircularProgress />
-      </Container>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm text-text-muted">加载中...</span>
+        </div>
+      </div>
     );
   }
 
   if (!project) {
     return (
-      <Container sx={{ py: 8 }}>
-        <Alert severity="error">项目未找到</Alert>
-        <Button onClick={() => router.push("/podcasts")} sx={{ mt: 2 }}>
-          返回列表
-        </Button>
-      </Container>
+      <div className="max-w-4xl mx-auto px-6 py-12">
+        <div className="bg-white border border-line rounded-xl p-6 text-center">
+          <p className="text-text-muted mb-4">项目未找到</p>
+          <button onClick={() => router.push("/podcasts")} className="px-4 py-2 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand-2 transition-colors">
+            返回列表
+          </button>
+        </div>
+      </div>
     );
   }
 
   // -----------------------------------------------------------------------
-  // Build full audio (T-3.6 & T-3.8)
+  // SOLO MODE — Two-column layout (synthesis.html style)
   // -----------------------------------------------------------------------
-  const handleBuildAudio = async () => {
-    setBuildLoading(true);
-    setError("");
-    try {
-      const result = await rebuildAudio(projectId);
-      const url = result.url || "";
-      setFullAudioUrl(url);
-      setFullAudioFilename(`full_${projectId}.wav`);
-      setSuccessMsg("音频拼接完成，可使用底部播放器播放");
-    } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : "拼接失败";
-      setError(msg);
-    } finally {
-      setBuildLoading(false);
-    }
-  };
+  if (!isDuoMode) {
+    return (
+      <div className="max-w-[1280px] mx-auto px-6 py-6">
+        {/* Page Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-xl font-bold text-text">{project.title}</h1>
+            <p className="text-sm text-text-muted mt-1">
+              状态：{project.status} · 模式：单人Solo
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link href="/podcasts" className="px-3 py-1.5 text-sm font-medium border border-line rounded-lg text-text hover:bg-bg-soft transition-colors">
+              返回列表
+            </Link>
+          </div>
+        </div>
 
-  // -----------------------------------------------------------------------
-  // Polling: update segment status (T-3.5)
-  // -----------------------------------------------------------------------
-  React.useEffect(() => {
-    const hasActive = segments.some(
-      (s) => s.status === "queued" || s.status === "synthesizing"
+        {/* Error / Success */}
+        {error && (
+          <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 flex items-center justify-between">
+            <span>{error}</span>
+            <button onClick={() => setError("")} className="text-red-400 hover:text-red-600">×</button>
+          </div>
+        )}
+        {successMsg && (
+          <div className="mb-4 px-4 py-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700 flex items-center justify-between">
+            <span>{successMsg}</span>
+            <button onClick={() => setSuccessMsg("")} className="text-green-400 hover:text-green-600">×</button>
+          </div>
+        )}
+
+        {/* Two-column layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6">
+          {/* Left: Main content */}
+          <div className="bg-white border border-line rounded-xl overflow-hidden">
+            {/* Top form */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-line-light">
+              <div className="grid grid-cols-2 gap-4 w-full">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[13px] font-medium text-text">语音模型</label>
+                  <select
+                    value={voiceModel}
+                    onChange={(e) => setVoiceModel(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm font-medium border-[1.5px] border-line rounded-lg bg-white text-text outline-none focus:border-brand focus:ring-3 focus:ring-brand/5 transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%236b7280%27 stroke-width=%272%27%3E%3Cpolyline points=%276 9 12 15 18 9%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_10px_center] pr-9"
+                  >
+                    <option value="mimo">MiMo v2.5 (小米)</option>
+                    <option value="minimax">MiniMax</option>
+                    <option value="edge-tts">Edge-TTS</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[13px] font-medium text-text">情绪风格 <span className="text-[12px] text-text-light font-normal">（一般无需指定）</span></label>
+                  <select className="w-full px-3 py-2.5 text-sm font-medium border-[1.5px] border-line rounded-lg bg-white text-text outline-none focus:border-brand focus:ring-3 focus:ring-brand/5 transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%236b7280%27 stroke-width=%272%27%3E%3Cpolyline points=%276 9 12 15 18 9%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_10px_center] pr-9">
+                    <option>自动（推荐）</option>
+                    <option>开心</option>
+                    <option>悲伤</option>
+                    <option>愤怒</option>
+                    <option>惊讶</option>
+                    <option>平静</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Tip bar */}
+            <div className="flex items-center justify-between px-5 py-2.5 bg-bg-soft border-b border-line-light text-[13px] text-text-muted">
+              <div className="flex items-center gap-1.5">
+                <span className="text-warn"><Icons.Info /></span>
+                <span>提示：<b className="font-semibold">&lt;#x#&gt;</b> 添加停顿(0.01-99.99秒)；2.8模型支持 (laughs)、(sighs) 等</span>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setNewSegText("")} className="flex items-center gap-1 px-2.5 py-1 text-[12px] text-text-muted bg-transparent border border-line rounded-md cursor-pointer hover:border-brand-3 hover:text-text transition-colors">
+                  <Icons.Clear /> 清空文本
+                </button>
+                <button className="flex items-center gap-1 px-2.5 py-1 text-[12px] text-text-muted bg-transparent border border-line rounded-md cursor-pointer hover:border-brand-3 hover:text-text transition-colors">
+                  <Icons.Upload /> 上传文件
+                </button>
+              </div>
+            </div>
+
+            {/* Text input area */}
+            <div className="p-5">
+              <textarea
+                value={newSegText}
+                onChange={(e) => setNewSegText(e.target.value)}
+                className="w-full min-h-[300px] border-none outline-none text-[15px] leading-[1.8] resize-y text-text font-[inherit] placeholder:text-text-light"
+                placeholder={"在此输入要合成的文本内容\n\n示例：你好，欢迎来到我的播客！今天我们要聊一个有趣的话题..."}
+              />
+            </div>
+
+            {/* Toolbar */}
+            <div className="flex items-center gap-2 px-5 py-3 border-t border-line-light flex-wrap">
+              <button onClick={() => insertMark("<#0.5#>")} className="flex items-center gap-1 px-3 py-1.5 text-[13px] text-text-muted bg-bg-soft border border-line rounded-md cursor-pointer hover:bg-line-light hover:text-text transition-colors">
+                <Icons.Pause /> 短停顿
+              </button>
+              <button onClick={() => insertMark("<#1.0#>")} className="flex items-center gap-1 px-3 py-1.5 text-[13px] text-text-muted bg-bg-soft border border-line rounded-md cursor-pointer hover:bg-line-light hover:text-text transition-colors">
+                <Icons.Pause /> 中停顿
+              </button>
+              <button onClick={() => insertMark("<#2.0#>")} className="flex items-center gap-1 px-3 py-1.5 text-[13px] text-text-muted bg-bg-soft border border-line rounded-md cursor-pointer hover:bg-line-light hover:text-text transition-colors">
+                <Icons.Pause /> 长停顿
+              </button>
+              <button onClick={() => setMultiProDialogOpen(true)} className="flex items-center gap-1 px-3 py-1.5 text-[13px] text-text-muted bg-bg-soft border border-line rounded-md cursor-pointer hover:bg-line-light hover:text-text transition-colors">
+                <Icons.Polyphone /> 多音字
+              </button>
+              <button onClick={() => insertMark("(laughs)")} className="flex items-center gap-1 px-3 py-1.5 text-[13px] text-text-muted bg-bg-soft border border-line rounded-md cursor-pointer hover:bg-line-light hover:text-text transition-colors">
+                <Icons.Tone /> 语气词
+              </button>
+              <div className="flex-1" />
+              <div className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] text-text-muted">
+                <div
+                  className={`w-9 h-5 rounded-full relative cursor-pointer transition-colors ${voiceSettings.langEnhance !== "auto" ? "bg-success" : "bg-line"}`}
+                  onClick={() => updateVoiceSetting("langEnhance", voiceSettings.langEnhance === "auto" ? "zh" : "auto")}
+                >
+                  <div className={`absolute w-4 h-4 bg-white rounded-full top-0.5 transition-transform shadow-sm ${voiceSettings.langEnhance !== "auto" ? "translate-x-4" : "translate-x-0.5"}`} />
+                </div>
+                <span>启用词典</span>
+              </div>
+            </div>
+
+            {/* Bottom info */}
+            <div className="flex items-center justify-between px-5 py-3 border-t border-line-light text-[13px] text-text-muted">
+              <div className="flex items-center gap-4">
+                <span>字符数：<span className="font-bold text-text">{totalChars}</span><span className="text-text-light"> / 10000</span></span>
+              </div>
+              <div>
+                预计消耗：<span className="font-bold text-success">{estimatedCredits} 字符</span>
+              </div>
+            </div>
+
+            {/* Synthesize button */}
+            <button
+              onClick={async () => {
+                // First: if there's text in the input, create a segment
+                if (newSegText.trim() && segments.length === 0) {
+                  try {
+                    const seg = await apiFetch<PodcastSegment>(`/api/v1/segments/podcasts/${projectId}/segments`, {
+                      method: "POST",
+                      body: JSON.stringify({
+                        role_key: "host",
+                        text: newSegText,
+                        emotion: "",
+                        pause_after_ms: 700,
+                      }),
+                    });
+                    setSegments((prev) => [...prev, { ...seg, status: "draft" }]);
+                    setNewSegText("");
+                    // Now synthesize the newly created segment
+                    await handleSynthesize(seg.id);
+                  } catch (err: unknown) {
+                    setError(err instanceof Error ? err.message : "合成失败");
+                  }
+                } else if (segments.length > 0) {
+                  handleSynthesize(segments[segments.length - 1].id);
+                } else if (newSegText.trim()) {
+                  // Solo mode: just synthesize the input text directly
+                  setError("");
+                  setSynthesisAudio(null);
+                  try {
+                    const seg = await apiFetch<PodcastSegment>(`/api/v1/segments/podcasts/${projectId}/segments`, {
+                      method: "POST",
+                      body: JSON.stringify({
+                        role_key: "host",
+                        text: newSegText,
+                      }),
+                    });
+                    setSegments((prev) => [...prev, { ...seg, status: "draft" }]);
+                    await handleSynthesize(seg.id);
+                  } catch (err: unknown) {
+                    setError(err instanceof Error ? err.message : "合成失败");
+                  }
+                }
+              }}
+              disabled={insufficientBalance || (newSegText.trim().length === 0 && segments.length === 0)}
+              className="w-[calc(100%-40px)] mx-5 mb-5 py-4 bg-brand text-white border-none rounded-lg text-[15px] font-semibold font-[inherit] cursor-pointer flex items-center justify-center gap-2 transition-all hover:bg-brand-2 hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Icons.Play /> {synthesizingId ? "合成中..." : "开始合成"}
+            </button>
+
+            {/* Synthesis progress bar */}
+            {synthesizingId && (
+              <div className="mx-5 mb-4">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm text-text-muted">正在合成语音，请稍候...</span>
+                </div>
+                <div className="w-full h-2 bg-bg-soft rounded-full overflow-hidden">
+                  <div className="h-full bg-success rounded-full animate-pulse" style={{ width: "60%" }} />
+                </div>
+              </div>
+            )}
+
+            {/* Synthesis result audio player */}
+            {synthesisAudio && (
+              <div className="mx-5 mb-5 p-4 bg-bg-soft border border-line rounded-xl">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-green-600">●</span>
+                  <span className="text-sm font-semibold text-text">合成完成</span>
+                </div>
+                <audio controls className="w-full h-10 rounded-lg">
+                  <source src={synthesisAudio.url} type="audio/wav" />
+                </audio>
+              </div>
+            )}
+
+          </div>
+
+          {/* Right: Settings panel */}
+          <div className="flex flex-col gap-4">
+            {/* Settings / History tabs */}
+            <div className="bg-white border border-line rounded-xl overflow-hidden">
+              <div className="flex border-b border-line-light">
+                <button
+                  onClick={() => setRightPanelTab("settings")}
+                  className={`flex-1 py-3 text-sm font-medium text-center border-none cursor-pointer transition-all border-b-2 ${rightPanelTab === "settings" ? "text-text font-semibold border-brand bg-bg-soft" : "text-text-muted bg-transparent border-b-transparent hover:text-text"}`}
+                >
+                  设置
+                </button>
+                <button
+                  onClick={() => setRightPanelTab("history")}
+                  className={`flex-1 py-3 text-sm font-medium text-center border-none cursor-pointer transition-all border-b-2 ${rightPanelTab === "history" ? "text-text font-semibold border-brand bg-bg-soft" : "text-text-muted bg-transparent border-b-transparent hover:text-text"}`}
+                >
+                  历史
+                </button>
+              </div>
+
+              {rightPanelTab === "settings" ? (
+                <div className="p-4">
+                  <div className="text-sm font-semibold text-text mb-3">音色</div>
+
+                  {/* Voice type tabs */}
+                  <div className="flex mb-4 rounded-md overflow-hidden border border-line">
+                    <button
+                      onClick={() => updateVoiceSetting("voiceType", "official")}
+                      className={`flex-1 py-2 text-[13px] font-medium text-center border-none cursor-pointer transition-colors ${voiceSettings.voiceType === "official" ? "bg-brand text-white" : "bg-bg-soft text-text-muted"}`}
+                    >
+                      官方音色
+                    </button>
+                    <button
+                      onClick={() => updateVoiceSetting("voiceType", "clone")}
+                      className={`flex-1 py-2 text-[13px] font-medium text-center border-none cursor-pointer transition-colors ${voiceSettings.voiceType === "clone" ? "bg-brand text-white" : "bg-bg-soft text-text-muted"}`}
+                    >
+                      克隆音色
+                    </button>
+                  </div>
+
+                  {/* Voice select */}
+                  <div className="mb-4">
+                    <select
+                      value={voiceSettings.voiceId}
+                      onChange={(e) => updateVoiceSetting("voiceId", e.target.value)}
+                      className="w-full px-3 py-2.5 text-sm font-medium border-[1.5px] border-line rounded-lg bg-white text-text outline-none focus:border-brand focus:ring-3 focus:ring-brand/5 transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%236b7280%27 stroke-width=%272%27%3E%3Cpolyline points=%276 9 12 15 18 9%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_10px_center] pr-9"
+                    >
+                      <option value="">请选择音色</option>
+                      {voices.map((v) => (
+                        <option key={v.id} value={v.provider_voice_id}>
+                          {v.name} ({v.gender === "male" ? "男声" : v.gender === "female" ? "女声" : "中性"})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Language enhance */}
+                  <div className="mb-4">
+                    <div className="text-xs text-text-muted mb-1.5">语言/方言增强</div>
+                    <select className="w-full px-3 py-2.5 text-sm font-medium border-[1.5px] border-line rounded-lg bg-white text-text outline-none focus:border-brand focus:ring-3 focus:ring-brand/5 transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%236b7280%27 stroke-width=%272%27%3E%3Cpolyline points=%276 9 12 15 18 9%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_10px_center] pr-9">
+                      <option>自动检测</option>
+                      <option>普通话</option>
+                      <option>粤语</option>
+                      <option>四川话</option>
+                      <option>东北话</option>
+                      <option>English</option>
+                    </select>
+                    <div className="text-[11px] text-text-light mt-1">优化指定语言和方言的识别效果（支持25种语言）</div>
+                  </div>
+
+                  <div className="h-px bg-line-light my-4" />
+
+                  {/* Voice adjustments */}
+                  <div className="text-sm font-semibold text-text mb-3">音色调节</div>
+
+                  {[
+                    { key: "speed", label: "语速", min: 0.5, max: 2.0, step: 0.1, decimals: 2 },
+                    { key: "pitch", label: "音调", min: -12, max: 12, step: 1, decimals: 0 },
+                    { key: "volume", label: "音量", min: 0, max: 2, step: 0.1, decimals: 2 },
+                  ].map((s) => (
+                    <div key={s.key} className="mb-4">
+                      <div className="flex items-center justify-between text-[13px] text-text-muted mb-2">
+                        <span className="font-medium text-text">{s.label}</span>
+                        <span className="font-semibold text-text">{getVoiceNum(s.key).toFixed(s.decimals)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={s.min}
+                        max={s.max}
+                        step={s.step}
+                        value={getVoiceNum(s.key)}
+                        onChange={(e) => updateVoiceSetting(s.key, parseFloat(e.target.value))}
+                        className="w-full h-1.5 rounded-full bg-line-light outline-none appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-text [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:hover:scale-110 [&::-webkit-slider-thumb]:transition-transform"
+                      />
+                    </div>
+                  ))}
+
+                  <div className="h-px bg-line-light my-4" />
+
+                  {/* Advanced effects */}
+                  <div className="text-sm font-semibold text-text mb-3">声音效果器（高级）</div>
+
+                  {[
+                    { key: "tonePitch", label: "音高（低沉/明亮）", min: -10, max: 10 },
+                    { key: "intensity", label: "强度（力量感/柔和）", min: -10, max: 10 },
+                    { key: "timbre", label: "音色（磁性/清脆）", min: -10, max: 10 },
+                  ].map((s) => (
+                    <div key={s.key} className="mb-4">
+                      <div className="flex items-center justify-between text-[13px] text-text-muted mb-2">
+                        <span className="font-medium text-text">{s.label}</span>
+                        <span className="font-semibold text-text">{getVoiceNum(s.key)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={s.min}
+                        max={s.max}
+                        step={1}
+                        value={getVoiceNum(s.key)}
+                        onChange={(e) => updateVoiceSetting(s.key, parseInt(e.target.value))}
+                        className="w-full h-1.5 rounded-full bg-line-light outline-none appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-text [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:hover:scale-110 [&::-webkit-slider-thumb]:transition-transform"
+                      />
+                    </div>
+                  ))}
+
+                  <div className="h-px bg-line-light my-4" />
+
+                  {/* Sound effects */}
+                  <div className="text-sm font-semibold text-text mb-3">音效（单选）</div>
+                  <div className="flex flex-col gap-2">
+                    {[
+                      { value: "none", label: "无" },
+                      { value: "hall", label: "大厅" },
+                      { value: "room", label: "房间" },
+                    ].map((e) => (
+                      <label
+                        key={e.value}
+                        className={`flex items-center gap-2 px-3 py-2.5 border-[1.5px] rounded-lg cursor-pointer transition-all text-[13px] ${voiceSettings.effect === e.value ? "border-brand bg-bg-soft text-text font-medium" : "border-line text-text-muted hover:border-brand-3"}`}
+                        onClick={() => updateVoiceSetting("effect", e.value)}
+                      >
+                        <input type="radio" name="effect" value={e.value} checked={voiceSettings.effect === e.value} className="w-4 h-4 accent-brand" />
+                        <span>{e.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4">
+                  {segments.length === 0 ? (
+                    <div className="text-center text-text-muted py-8">
+                      <Icons.History />
+                      <p className="mt-3 text-sm">暂无历史记录</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {segments.map((seg, idx) => (
+                        <div
+                          key={seg.id}
+                          className="p-3 bg-bg-soft rounded-lg border border-line hover:border-brand-3 transition-colors cursor-pointer"
+                          onClick={() => startEditing(seg)}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-semibold text-text-muted">#{idx + 1}</span>
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ backgroundColor: getRoleColor(seg) + "22", color: getRoleColor(seg) }}>
+                              {seg.role?.name || seg.role_id}
+                            </span>
+                            <span className="text-[10px] text-text-light">{seg.status}</span>
+                          </div>
+                          <p className="text-xs text-text-muted line-clamp-2">{seg.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Save config */}
+            <div className="bg-white border border-line rounded-xl overflow-hidden">
+              <div className="flex items-center justify-end px-4 py-3 border-t border-line-light">
+                <button className="text-[13px] text-text-muted cursor-pointer hover:text-text transition-colors">
+                  + 保存当前参数
+                </button>
+              </div>
+              <div className="px-4 py-3 text-[13px] text-text-light text-center border-t border-line-light">
+                暂无保存的配置
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Audio Player */}
+        {fullAudioUrl && (
+          <div className="mt-6 mb-4 bg-white border border-line rounded-xl p-4">
+            <audio controls className="w-full h-9 rounded-lg">
+              <source src={`${API_BASE}${fullAudioUrl}`} />
+            </audio>
+          </div>
+        )}
+
+        {/* Mark insertion popup */}
+        {markMenuOpen && (
+          <div className="fixed inset-0 z-50" onClick={() => { setMarkMenuOpen(false); setMarkTargetSegId(null); }}>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white border border-line rounded-xl shadow-lg p-2 min-w-[200px]" onClick={(e) => e.stopPropagation()}>
+              <div className="px-3 py-1.5 text-xs font-semibold text-text-muted">暂停标记</div>
+              {PAUSE_MARKERS.map((m) => (
+                <button key={m.tag} onClick={() => insertMark(m.tag)} className="w-full text-left px-3 py-2 text-sm text-text hover:bg-bg-soft rounded-lg transition-colors">
+                  {m.label} {m.tag}
+                </button>
+              ))}
+              <div className="px-3 py-1.5 text-xs font-semibold text-text-muted mt-1">多音字</div>
+              <button onClick={() => { setMultiProDialogOpen(true); setMarkMenuOpen(false); }} className="w-full text-left px-3 py-2 text-sm text-text hover:bg-bg-soft rounded-lg transition-colors">
+                打开多音字选择器…
+              </button>
+              <div className="px-3 py-1.5 text-xs font-semibold text-text-muted mt-1">语气词</div>
+              {TONE_WORDS.map((t) => (
+                <button key={t.tag} onClick={() => insertMark(t.tag)} className="w-full text-left px-3 py-2 text-sm text-text hover:bg-bg-soft rounded-lg transition-colors">
+                  {t.label} {t.tag}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* AI Optimize Dialog */}
+        {aiDialogOpen && (
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" onClick={() => setAiDialogOpen(false)}>
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-lg font-semibold text-text mb-4">AI 优化片段</h3>
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-text">优化方式</label>
+                  <select
+                    value={aiPrompt}
+                    onChange={(e) => { setAiPrompt(e.target.value); setAiCustomPrompt(""); }}
+                    className="w-full px-3 py-2.5 text-sm font-medium border-[1.5px] border-line rounded-lg bg-white text-text outline-none focus:border-brand focus:ring-3 focus:ring-brand/5 transition-all"
+                  >
+                    <option value="">请选择</option>
+                    {AI_OPTIMIZE_PROMPTS.map((p) => (
+                      <option key={p.value} value={p.value}>{p.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-text">自定义指令（可选）</label>
+                  <textarea
+                    value={aiCustomPrompt}
+                    onChange={(e) => { setAiCustomPrompt(e.target.value); setAiPrompt(""); }}
+                    className="w-full px-3 py-2.5 text-sm font-medium border-[1.5px] border-line rounded-lg bg-white text-text outline-none focus:border-brand focus:ring-3 focus:ring-brand/5 transition-all resize-y min-h-[80px] placeholder:text-text-light"
+                    placeholder="输入自定义 AI 指令，例如：多用比喻、增加互动感…"
+                  />
+                </div>
+                <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+                  当前为演示模式。接入 LLM API 后将实现真实 AI 优化。
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 mt-6">
+                <button onClick={() => setAiDialogOpen(false)} className="px-4 py-2 text-sm font-medium border border-line rounded-lg hover:bg-bg-soft transition-colors">
+                  取消
+                </button>
+                <button
+                  onClick={handleAiOptimize}
+                  disabled={aiLoading || (!aiPrompt && !aiCustomPrompt.trim())}
+                  className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-2 transition-colors disabled:opacity-50"
+                >
+                  {aiLoading ? "处理中..." : "优化"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Multi-pronunciation Dialog */}
+        {multiProDialogOpen && (
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" onClick={() => setMultiProDialogOpen(false)}>
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-6" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-lg font-semibold text-text mb-4">多音字选择器</h3>
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-text">选择多音字</label>
+                  <select
+                    value={multiProChar}
+                    onChange={(e) => { setMultiProChar(e.target.value); setMultiProReading(""); }}
+                    className="w-full px-3 py-2.5 text-sm font-medium border-[1.5px] border-line rounded-lg bg-white text-text outline-none focus:border-brand focus:ring-3 focus:ring-brand/5 transition-all"
+                  >
+                    <option value="">请选择</option>
+                    {MULTI_PRONUNCIATION.map((m) => (
+                      <option key={m.char} value={m.char}>{m.char}</option>
+                    ))}
+                  </select>
+                </div>
+                {multiProChar && (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium text-text">选择读音</label>
+                    <select
+                      value={multiProReading}
+                      onChange={(e) => setMultiProReading(e.target.value)}
+                      className="w-full px-3 py-2.5 text-sm font-medium border-[1.5px] border-line rounded-lg bg-white text-text outline-none focus:border-brand focus:ring-3 focus:ring-brand/5 transition-all"
+                    >
+                      <option value="">请选择</option>
+                      {MULTI_PRONUNCIATION.find((m) => m.char === multiProChar)?.readings.map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-end gap-2 mt-6">
+                <button onClick={() => setMultiProDialogOpen(false)} className="px-4 py-2 text-sm font-medium border border-line rounded-lg hover:bg-bg-soft transition-colors">
+                  取消
+                </button>
+                <button
+                  onClick={handleMultiProConfirm}
+                  disabled={!multiProChar || !multiProReading}
+                  className="px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-2 transition-colors disabled:opacity-50"
+                >
+                  插入标记
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     );
-    if (!hasActive) {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
-      return;
-    }
-    if (pollingRef.current) return;
-    pollingRef.current = setInterval(async () => {
-      try {
-        const updated = await Promise.all(
-          segments
-            .filter((s) => s.status === "queued" || s.status === "synthesizing")
-            .map((s) => getSegment(s.id))
-        );
-        setSegments((prev) =>
-          prev.map((s) => {
-            const u = updated.find((r) => r && r.id === s.id);
-            return u ? { ...s, ...u } : s;
-          })
-        );
-      } catch { /* ignore polling errors */ }
-    }, 3000);
-    return () => {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
-    };
-  }, [segments]);
+  }
 
   // -----------------------------------------------------------------------
-  // Right panel: voice settings (T-3.7)
-  // -----------------------------------------------------------------------
-  const handleChangeVoice = async (roleId: string, data: { voice_id: string; speed?: number; pitch?: number; volume?: number }) => {
-    setError("");
-    try {
-      await changeVoice(roleId, data);
-      setSuccessMsg("音色已切换，相关片段已标记 draft");
-      loadData();
-      setRightPanelOpen(false);
-    } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : "切换失败";
-      setError(msg);
-    }
-  };
-
-  // -----------------------------------------------------------------------
-  // Main render
+  // DUO MODE — Single-column layout (interview.html style)
   // -----------------------------------------------------------------------
   return (
-    <Container maxWidth="lg" sx={{ py: 3, pb: 10 }}>
-      {/* Header */}
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-        <Box>
-          <Typography variant="h5" fontWeight={700}>
-            {project.title}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            状态：{project.status} · 模式：{project.mode} · 共 {segments.length} 段
-          </Typography>
-        </Box>
-        <Stack direction="row" spacing={1}>
-          <Tooltip title="撤销">
-            <IconButton size="small" onClick={handleUndo} disabled={undoStack.current.length === 0}>
-              <UndoIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="重做">
-            <IconButton size="small" onClick={handleRedo} disabled={redoStack.current.length === 0}>
-              <RedoIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="拼接全部音频">
-            <IconButton size="small" onClick={handleBuildAudio} disabled={buildLoading}>
-              {buildLoading ? <CircularProgress size={20} /> : <PlayArrowIcon fontSize="small" />}
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="音色设置">
-            <IconButton size="small" onClick={() => setRightPanelOpen(true)}>
-              <SettingsIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Button variant="outlined" size="small" onClick={() => router.push("/podcasts")}>
-            返回列表
-          </Button>
-        </Stack>
-      </Stack>
+    <div className="max-w-[1000px] mx-auto px-6 py-8">
+      {/* Page Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-text">{project.title}</h1>
+        <p className="text-sm text-text-muted mt-2">输入对话文案，一键合成播客风格的对话音频</p>
+      </div>
 
+      {/* Error / Success */}
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
-          {error}
-        </Alert>
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError("")} className="text-red-400 hover:text-red-600">×</button>
+        </div>
+      )}
+      {successMsg && (
+        <div className="mb-4 px-4 py-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700 flex items-center justify-between">
+          <span>{successMsg}</span>
+          <button onClick={() => setSuccessMsg("")} className="text-green-400 hover:text-green-600">×</button>
+        </div>
       )}
 
-      {/* Balance & Credit Estimation Bar */}
-      <Paper variant="outlined" sx={{ p: 2, mb: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2 }}>
-        <Typography variant="caption" color="text.secondary">
-          字数：<strong>{totalChars}</strong>
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          预计消耗：<strong>{estimatedCredits} 积分</strong>
-        </Typography>
-        <Typography variant="caption" color={insufficientBalance ? "error" : "text.secondary"}>
-          余额：<strong>{balance !== null ? balance : "..."} 积分</strong>
-          {insufficientBalance && " · 余额不足"}
-        </Typography>
-        {insufficientBalance && (
-          <Button size="small" color="error" variant="outlined">
-            去充值
-          </Button>
-        )}
-      </Paper>
+      {/* Basic settings card */}
+      <div className="bg-white border border-line rounded-xl p-6 mb-5 shadow-sm">
+        <div className="flex items-center gap-2 text-base font-semibold text-text mb-4">
+          <span className="text-brand"><Icons.Settings /></span>
+          基本设置
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-2">
+            <label className="text-[13px] font-semibold text-text">角色 A 音色</label>
+            <select className="w-full px-4 py-3 text-sm font-medium border-[1.5px] border-line rounded-xl bg-white text-text outline-none focus:border-brand focus:ring-3 focus:ring-brand/5 transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%236b7280%27 stroke-width=%272%27%3E%3Cpolyline points=%276 9 12 15 18 9%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_14px_center] pr-10">
+              <option>男声-中文-1</option>
+              <option>女声-中文-1</option>
+              <option>Male-English-1</option>
+              <option>Female-English-1</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-[13px] font-semibold text-text">角色 B 音色</label>
+            <select className="w-full px-4 py-3 text-sm font-medium border-[1.5px] border-line rounded-xl bg-white text-text outline-none focus:border-brand focus:ring-3 focus:ring-brand/5 transition-all cursor-pointer appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%236b7280%27 stroke-width=%272%27%3E%3Cpolyline points=%276 9 12 15 18 9%27/%3E%3C/svg%3E')] bg-no-repeat bg-[right_14px_center] pr-10">
+              <option>女声-中文-1</option>
+              <option>男声-中文-1</option>
+              <option>Female-English-1</option>
+              <option>Male-English-1</option>
+            </select>
+          </div>
+        </div>
+      </div>
 
-      <Divider sx={{ mb: 2 }} />
+      {/* Dialogue input card */}
+      <div className="bg-white border border-line rounded-xl p-6 mb-5 shadow-sm">
+        <div className="flex items-center gap-2 text-base font-semibold text-text mb-4">
+          <span className="text-brand"><Icons.Edit /></span>
+          对话文案
+        </div>
 
-      {/* Toolbar */}
-      <Paper variant="outlined" sx={{ p: 1, mb: 2, display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
-        <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>
-          工具栏：
-        </Typography>
-        <Tooltip title="加粗选中文本（编辑模式下生效）">
-          <IconButton
-            size="small"
-            onClick={() => {
-              if (editingSegId && editing[editingSegId]) {
-                handleEditingChange(editingSegId, "text", editing[editingSegId].text + "**粗体**");
-              }
-            }}
-          >
-            <FormatBoldIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="斜体（编辑模式下生效）">
-          <IconButton
-            size="small"
-            onClick={() => {
-              if (editingSegId && editing[editingSegId]) {
-                handleEditingChange(editingSegId, "text", editing[editingSegId].text + "*斜体*");
-              }
-            }}
-          >
-            <FormatItalicIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="插入暂停标记">
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              setMarkMenuAnchor(e.currentTarget);
-              setMarkTargetSegId(editingSegId);
-              setMarkInsertCallback(null);
-            }}
-          >
-            <FlagIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="多音字选择器">
-          <IconButton
-            size="small"
-            onClick={() => setMultiProDialogOpen(true)}
-          >
-            <FormatItalicIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        {selectedIds.size > 0 && (
-          <Button size="small" variant="contained" color="warning" onClick={handleBulkDelete}>
-            删除选中 ({selectedIds.size})
-          </Button>
-        )}
-      </Paper>
+        {/* Batch input */}
+        <div className="bg-bg-soft border-2 border-dashed border-line rounded-xl p-5 mb-5 hover:border-brand-3 transition-colors">
+          <label className="text-[13px] font-semibold text-text block mb-2">批量输入（自动解析）</label>
+          <textarea
+            value={batchInput}
+            onChange={(e) => setBatchInput(e.target.value)}
+            className="w-full min-h-[120px] px-4 py-3 text-sm font-medium border-[1.5px] border-line rounded-xl bg-white text-text outline-none focus:border-brand focus:ring-3 focus:ring-brand/5 transition-all resize-y placeholder:text-text-light mb-3"
+            placeholder={"输入对话文案，格式：\nA: 你好 B: 你好，欢迎来到我的播客...\n系统会自动解析 A/B 角色对话"}
+          />
+          <div className="flex items-center gap-2 text-[13px] text-text-muted mb-3">
+            <span className="text-warn"><Icons.Info /></span>
+            提示：使用 "A:" 或 "B:" 开头来标识角色，系统会自动解析成对话条目
+          </div>
+          <div className="flex gap-2">
+            <button onClick={parseBatchDialogue} className="px-5 py-2.5 bg-brand text-white text-sm font-semibold rounded-lg hover:bg-brand-2 transition-colors">
+              解析文案
+            </button>
+            <button onClick={() => { setBatchInput(""); setSegments([]); }} className="px-5 py-2.5 text-sm font-semibold border-[1.5px] border-line rounded-lg text-text hover:bg-bg-soft transition-colors">
+              清空全部
+            </button>
+          </div>
+        </div>
 
-      {/* Mark insertion menu */}
-      <Menu
-        anchorEl={markMenuAnchor}
-        open={Boolean(markMenuAnchor)}
-        onClose={() => { setMarkMenuAnchor(null); setMarkTargetSegId(null); }}
-      >
-        <MenuItem disabled sx={{ fontWeight: 600 }}>暂停标记</MenuItem>
-        {PAUSE_MARKERS.map((m) => (
-          <MenuItem key={m.tag} onClick={() => handleMarkSelect(m.tag)}>
-            {m.label}
-          </MenuItem>
-        ))}
-        <MenuItem disabled sx={{ fontWeight: 600 }}>多音字</MenuItem>
-        <MenuItem onClick={() => { setMultiProDialogOpen(true); setMarkMenuAnchor(null); }}>
-          打开多音字选择器…
-        </MenuItem>
-        <MenuItem disabled sx={{ fontWeight: 600 }}>语气词</MenuItem>
-        {TONE_WORDS.map((t) => (
-          <MenuItem key={t.tag} onClick={() => handleMarkSelect(t.tag)}>
-            {t.label} {t.tag}
-          </MenuItem>
-        ))}
-      </Menu>
+        {/* Dialogue list */}
+        <div className="space-y-3">
+          {segments.map((seg, idx) => {
+            const isEditing = editingSegId === seg.id;
+            const draft = editing[seg.id];
+            const roleColor = getRoleColor(seg);
+            const isRoleA = seg.role_id === "host";
 
-      {/* Bulk edit panel */}
-      {selectedIds.size > 0 && (
-        <Paper variant="outlined" sx={{ p: 2, mb: 2, bgcolor: "action.hover" }}>
-          <Typography variant="subtitle2" gutterBottom>
-            批量编辑（已选 {selectedIds.size} 段）
-          </Typography>
-          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-            <TextField
-              select
-              label="情绪"
-              size="small"
-              value={bulkEmotion}
-              onChange={(e) => setBulkEmotion(e.target.value)}
-              sx={{ minWidth: 120 }}
-            >
-              {EMOTION_OPTIONS.map((o) => (
-                <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              label="停顿(ms)"
-              size="small"
-              type="number"
-              value={bulkPause}
-              onChange={(e) => setBulkPause(e.target.value)}
-              sx={{ width: 130 }}
-            />
-            <Button variant="contained" size="small" onClick={handleBulkSave} disabled={saving}>
-              批量保存
-            </Button>
-            <Button size="small" onClick={handleSelectAll}>
-              {selectedIds.size === segments.length ? "取消全选" : "全选"}
-            </Button>
-          </Stack>
-        </Paper>
-      )}
-
-      {/* Segment List */}
-      <Typography variant="h6" fontWeight={600} gutterBottom>
-        播客片段 ({segments.length})
-        <Button size="small" onClick={handleSelectAll} sx={{ ml: 2 }}>
-          {selectedIds.size === segments.length ? "取消全选" : "全选"}
-        </Button>
-      </Typography>
-
-      {segments.length === 0 ? (
-        <Paper variant="outlined" sx={{ p: 4, textAlign: "center" }}>
-          <Typography variant="body2" color="text.secondary">
-            暂无片段，请在下方添加第一段内容
-          </Typography>
-        </Paper>
-      ) : (
-        segments.map((seg, idx) => {
-          const isEditing = editingSegId === seg.id;
-          const draft = editing[seg.id];
-          const roleColor = getRoleColor(seg);
-
-          return (
-            <Paper
-              key={seg.id}
-              variant="outlined"
-              sx={{
-                p: 2,
-                mb: 1.5,
-                bgcolor: selectedIds.has(seg.id) ? "action.selected" : "background.paper",
-                borderLeft: `4px solid ${roleColor}`,
-                transition: "background-color 0.2s",
-              }}
-            >
-              <Stack direction="row" alignItems="flex-start" spacing={1}>
-                {/* Selection checkbox */}
-                <Checkbox
-                  size="small"
-                  checked={selectedIds.has(seg.id)}
+            return (
+              <div
+                key={seg.id}
+                className={`flex gap-3 items-start p-4 bg-bg-soft rounded-xl border transition-colors hover:border-brand-3 ${isRoleA ? "border-l-4 border-l-success" : "border-l-4 border-l-blue-500"}`}
+              >
+                {/* Role select */}
+                <select
+                  value={seg.role_id || "host"}
                   onChange={(e) => {
-                    const next = new Set(selectedIds);
-                    if (e.target.checked) next.add(seg.id);
-                    else next.delete(seg.id);
-                    setSelectedIds(next);
+                    // Update role
+                    const newRoleId = e.target.value;
+                    setSegments((prev) => prev.map((s) => s.id === seg.id ? { ...s, role_id: newRoleId } : s));
                   }}
-                  sx={{ mt: 0.5 }}
-                />
+                  className="w-[90px] px-3 py-2.5 text-sm font-medium border-[1.5px] border-line rounded-xl bg-white text-text outline-none focus:border-brand cursor-pointer flex-shrink-0"
+                >
+                  <option value="host">角色 A</option>
+                  <option value="guest">角色 B</option>
+                </select>
 
-                {/* Segment number */}
-                <Typography variant="caption" color="text.secondary" sx={{ minWidth: 24, mt: 0.5 }}>
-                  {idx + 1}
-                </Typography>
+                {/* Text */}
+                {isEditing && draft ? (
+                  <textarea
+                    value={draft.text}
+                    onChange={(e) => handleEditingChange(seg.id, "text", e.target.value)}
+                    className="flex-1 min-h-[60px] px-3 py-2.5 text-sm font-medium border-[1.5px] border-line rounded-xl bg-white text-text outline-none focus:border-brand focus:ring-3 focus:ring-brand/5 transition-all resize-y"
+                  />
+                ) : (
+                  <div
+                    className="flex-1 min-h-[60px] px-3 py-2.5 text-sm leading-relaxed whitespace-pre-wrap cursor-pointer hover:bg-white rounded-xl transition-colors"
+                    onClick={() => startEditing(seg)}
+                  >
+                    {seg.text}
+                  </div>
+                )}
 
-                {/* Content area */}
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  {/* Role badge */}
-                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                    <Box
-                      sx={{
-                        px: 1,
-                        py: 0.25,
-                        borderRadius: 1,
-                        bgcolor: roleColor + "22",
-                        color: roleColor,
-                        fontSize: 12,
-                        fontWeight: 600,
-                      }}
-                    >
-                      {seg.role?.name || seg.role_id || "?"}
-                    </Box>
-                    <Typography variant="caption" color="text.secondary">
-                      情绪：{getEmotionLabel(seg.emotion)} · 停顿：{seg.pause_after_ms || 700}ms
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      状态：{seg.status}
-                    </Typography>
-                  </Stack>
-
-                  {/* Editing mode vs Display mode */}
+                {/* Actions */}
+                <div className="flex gap-1 flex-shrink-0">
                   {isEditing && draft ? (
-                    <Box sx={{ mt: 1 }}>
-                      <TextField
-                        multiline
-                        fullWidth
-                        minRows={2}
-                        maxRows={8}
-                        value={draft.text}
-                        onChange={(e) => handleEditingChange(seg.id, "text", e.target.value)}
-                        sx={{ mb: 1 }}
-                      />
-                      <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-                        <TextField
-                          select
-                          label="情绪"
-                          size="small"
-                          value={draft.emotion}
-                          onChange={(e) => handleEditingChange(seg.id, "emotion", e.target.value)}
-                          sx={{ minWidth: 120 }}
-                        >
-                          {EMOTION_OPTIONS.map((o) => (
-                            <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          label="停顿(ms)"
-                          size="small"
-                          type="number"
-                          value={draft.pause_after_ms}
-                          onChange={(e) =>
-                            handleEditingChange(seg.id, "pause_after_ms", parseInt(e.target.value, 10) || 700)
-                          }
-                          sx={{ width: 130 }}
-                        />
-                        <Button
-                          size="small"
-                          variant="contained"
-                          startIcon={<SaveIcon />}
-                          onClick={() => saveEditing(seg.id)}
-                          disabled={saving}
-                        >
-                          保存
-                        </Button>
-                        <Button
-                          size="small"
-                          startIcon={<CancelIcon />}
-                          onClick={cancelEditing}
-                        >
-                          取消
-                        </Button>
-                        <Button
-                          size="small"
-                          startIcon={<FlagIcon />}
-                          onClick={(e) => {
-                            setMarkMenuAnchor(e.currentTarget);
-                            setMarkTargetSegId(seg.id);
-                          }}
-                        >
-                          插入标记
-                        </Button>
-                      </Stack>
-                    </Box>
-                  ) : (
-                    <Box>
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          whiteSpace: "pre-wrap",
-                          lineHeight: 1.7,
-                          ...(seg.text.includes("**") ? { fontWeight: 600 } : {}),
-                        }}
-                      >
-                        {seg.text.split(/(\*\*.*?\*\*)/g).map((part, i) =>
-                          part.startsWith("**") && part.endsWith("**") ? (
-                            <strong key={i}>{part.slice(2, -2)}</strong>
-                          ) : (
-                            <span key={i}>{part}</span>
-                          )
-                        )}
-                      </Typography>
-                      {seg.audio_asset && (
-                        <Button
-                          size="small"
-                          startIcon={<PlayArrowIcon />}
-                          sx={{ mt: 0.5 }}
-                          onClick={() => alert("播放功能开发中")}
-                        >
-                          播放片段
-                        </Button>
-                      )}
-                    </Box>
-                  )}
-                </Box>
-
-                {/* Action buttons */}
-                <Stack direction="row" spacing={0.5}>
-                  {!isEditing && (
                     <>
-                      <Tooltip title="编辑">
-                        <IconButton size="small" onClick={() => startEditing(seg)}>
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="AI 优化">
-                        <IconButton
-                          size="small"
-                          onClick={() => {
-                            setAiSegId(seg.id);
-                            setAiDialogOpen(true);
-                          }}
-                        >
-                          <FormatItalicIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="合成语音">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleSynthesize(seg.id)}
-                          color={insufficientBalance ? "error" : "primary"}
-                          disabled={insufficientBalance}
-                        >
-                          <PlayArrowIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
+                      <button onClick={() => saveEditing(seg.id)} disabled={saving} className="p-2 text-brand hover:bg-white rounded-lg transition-colors disabled:opacity-50" title="保存">
+                        <Icons.Save />
+                      </button>
+                      <button onClick={cancelEditing} className="p-2 text-text-muted hover:bg-white rounded-lg transition-colors" title="取消">
+                        <Icons.Cancel />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button onClick={() => startEditing(seg)} className="p-2 text-text-muted hover:text-text hover:bg-white rounded-lg transition-colors" title="编辑">
+                        <Icons.Edit />
+                      </button>
+                      <button onClick={() => handleSynthesize(seg.id)} disabled={insufficientBalance} className="p-2 text-brand hover:bg-white rounded-lg transition-colors disabled:opacity-30" title="合成">
+                        <Icons.Play />
+                      </button>
                     </>
                   )}
-                  <Tooltip title="删除">
-                    <IconButton
-                      size="small"
-                      onClick={() => handleDeleteSegment(seg.id)}
-                      color="error"
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </Stack>
-              </Stack>
-            </Paper>
-          );
-        })
-      )}
+                  <button onClick={() => handleDeleteSegment(seg.id)} className="p-2 text-danger hover:bg-red-50 rounded-lg transition-colors" title="删除">
+                    <Icons.Trash />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
-      <Divider sx={{ my: 3 }} />
-
-      {/* Add New Segment */}
-      <Paper variant="outlined" sx={{ p: 3 }}>
-        <Typography variant="h6" fontWeight={600} gutterBottom>
-          添加新片段
-        </Typography>
-        <Stack spacing={2}>
-          <Stack direction="row" spacing={2} flexWrap="wrap">
-            <TextField
-              select
-              label="角色"
-              size="small"
-              value={newSegRole}
-              onChange={(e) => setNewSegRole(e.target.value)}
-              sx={{ minWidth: 120 }}
-            >
-              {(project.roles || []).map((r) => (
-                <MenuItem key={r.role_key} value={r.role_key}>
-                  {r.name}
-                </MenuItem>
-              ))}
-              {(!project.roles || project.roles.length === 0) && [
-                <MenuItem key="host" value="host">主持人</MenuItem>,
-                <MenuItem key="guest" value="guest">嘉宾</MenuItem>,
-              ]}
-            </TextField>
-            <TextField
-              select
-              label="情绪"
-              size="small"
-              value={newSegEmotion}
-              onChange={(e) => setNewSegEmotion(e.target.value)}
-              sx={{ minWidth: 120 }}
-            >
-              {EMOTION_OPTIONS.map((o) => (
-                <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              label="停顿(ms)"
-              size="small"
-              type="number"
-              value={newSegPause}
-              onChange={(e) => setNewSegPause(parseInt(e.target.value, 10) || 700)}
-              sx={{ width: 130 }}
-            />
-            <Button
-              size="small"
-              startIcon={<FlagIcon />}
-              onClick={(e) => {
-                setMarkMenuAnchor(e.currentTarget);
-                setMarkTargetSegId(null);
-              }}
-            >
-              插入标记
-            </Button>
-          </Stack>
-          <TextField
-            label="片段内容"
-            fullWidth
-            multiline
-            minRows={2}
-            maxRows={6}
-            value={newSegText}
-            onChange={(e) => setNewSegText(e.target.value)}
-            placeholder="输入该片段的播客文本..."
-          />
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleAddSegment}
-            disabled={!newSegText.trim()}
-            sx={{ alignSelf: "flex-start" }}
-          >
-            添加片段
-          </Button>
-        </Stack>
-      </Paper>
-
-      {/* AI Optimize Dialog */}
-      <Dialog open={aiDialogOpen} onClose={() => setAiDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>AI 优化片段</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField
-              select
-              label="优化方式（快捷选择）"
-              fullWidth
-              value={aiPrompt}
-              onChange={(e) => { setAiPrompt(e.target.value); setAiCustomPrompt(""); }}
-            >
-              {AI_OPTIMIZE_PROMPTS.map((p) => (
-                <MenuItem key={p.value} value={p.value}>{p.label}</MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              label="自定义指令（可选，填写后优先使用）"
-              fullWidth
-              multiline
-              rows={3}
-              value={aiCustomPrompt}
-              onChange={(e) => { setAiCustomPrompt(e.target.value); setAiPrompt(""); }}
-              placeholder="输入自定义 AI 指令，例如：多用比喻、增加互动感…"
-            />
-            <Alert severity="info">
-              当前为演示模式。接入 LLM API 后将实现真实 AI 优化。
-            </Alert>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAiDialogOpen(false)}>取消</Button>
-          <Button
-            variant="contained"
-            onClick={handleAiOptimize}
-            disabled={aiLoading || (!aiPrompt && !aiCustomPrompt.trim())}
-          >
-            {aiLoading ? "处理中..." : "优化"}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Multi-pronunciation Selector Dialog */}
-      <Dialog open={multiProDialogOpen} onClose={() => setMultiProDialogOpen(false)} maxWidth="xs">
-        <DialogTitle>多音字选择器</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField
-              select
-              label="选择多音字"
-              fullWidth
-              value={multiProChar}
-              onChange={(e) => { setMultiProChar(e.target.value); setMultiProReading(""); }}
-            >
-              {MULTI_PRONUNCIATION.map((m) => (
-                <MenuItem key={m.char} value={m.char}>{m.char}</MenuItem>
-              ))}
-            </TextField>
-            {multiProChar && (
-              <TextField
-                select
-                label="选择读音"
-                fullWidth
-                value={multiProReading}
-                onChange={(e) => setMultiProReading(e.target.value)}
-              >
-                {MULTI_PRONUNCIATION.find((m) => m.char === multiProChar)?.readings.map((r) => (
-                  <MenuItem key={r} value={r}>{r}</MenuItem>
-                ))}
-              </TextField>
-            )}
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setMultiProDialogOpen(false)}>取消</Button>
-          <Button
-            variant="contained"
-            onClick={handleMultiProConfirm}
-            disabled={!multiProChar || !multiProReading}
-          >
-            插入标记
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Success snackbar */}
-      <Snackbar
-        open={!!successMsg}
-        autoHideDuration={3000}
-        onClose={() => setSuccessMsg("")}
-        message={successMsg}
-      />
-
-      {/* Audio Player (T-3.8) */}
-      {fullAudioUrl && (
-        <Box sx={{ mt: 3, mb: 2 }}>
-          <AudioPlayer src={getAudioSrc(fullAudioUrl)} filename={fullAudioFilename} />
-        </Box>
-      )}
-      {!fullAudioUrl && segments.some(s => s.audio_asset) && (
-        <Button
-          variant="contained"
-          color="secondary"
-          fullWidth
-          onClick={handleBuildAudio}
-          disabled={buildLoading}
-          sx={{ mt: 2, mb: 2 }}
+        {/* Add dialogue button */}
+        <button
+          onClick={handleAddSegment}
+          className="w-full mt-3 py-3 text-sm font-semibold border-[1.5px] border-dashed border-line rounded-xl text-text-muted hover:border-brand-3 hover:text-text transition-colors flex items-center justify-center gap-2"
         >
-          {buildLoading ? "拼接中..." : "拼接全部音频"}
-        </Button>
+          <Icons.Plus /> 添加对话条目
+        </button>
+
+        {/* Bottom action bar */}
+        <div className="flex items-center justify-between mt-5 pt-5 border-t border-line">
+          <div className="text-sm text-text-muted">
+            字符数: <span className="font-semibold text-text">{totalChars}</span> / 10000
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                if (segments.length > 0) {
+                  handleSynthesize(segments[segments.length - 1].id);
+                }
+              }}
+              disabled={insufficientBalance}
+              className="px-5 py-2.5 bg-brand text-white text-sm font-semibold rounded-lg hover:bg-brand-2 transition-colors disabled:opacity-50"
+            >
+              提交合成任务
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Segment list for duo */}
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold text-text mb-4">历史片段</h2>
+        {segments.length === 0 ? (
+          <div className="bg-white border border-line rounded-xl p-10 text-center text-text-muted text-sm">
+            暂无历史片段
+          </div>
+        ) : (
+          segments.map((seg, idx) => (
+            <div key={seg.id} className="bg-white border border-line rounded-xl p-4 mb-3 hover:shadow-sm transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-sm font-semibold text-text">{seg.role?.name || seg.role_id}</span>
+                  <span className="text-xs text-text-muted ml-2">· {getEmotionLabel(seg.emotion)}</span>
+                  <span className="text-xs text-text-muted ml-2">· {seg.status}</span>
+                </div>
+                <div className="flex gap-1">
+                  <button onClick={() => handleSynthesize(seg.id)} disabled={insufficientBalance} className="p-1.5 text-brand hover:bg-bg-soft rounded-lg transition-colors disabled:opacity-30" title="合成">
+                    <Icons.Play />
+                  </button>
+                  <button onClick={() => handleDeleteSegment(seg.id)} className="p-1.5 text-danger hover:bg-red-50 rounded-lg transition-colors" title="删除">
+                    <Icons.Trash />
+                  </button>
+                </div>
+              </div>
+              <p className="text-sm text-text-muted mt-1 line-clamp-2">{seg.text}</p>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Audio Player */}
+      {fullAudioUrl && (
+        <div className="mt-6 mb-4 bg-white border border-line rounded-xl p-4">
+          <audio controls className="w-full h-9 rounded-lg">
+            <source src={`${API_BASE}${fullAudioUrl}`} />
+          </audio>
+        </div>
       )}
-
-      {/* Right Panel Drawer (T-3.7) */}
-      <Drawer
-        anchor="right"
-        open={rightPanelOpen}
-        onClose={() => setRightPanelOpen(false)}
-      >
-        <Box sx={{ width: 320, p: 2 }}>
-          <Typography variant="h6" gutterBottom>音色设置</Typography>
-          {project?.roles?.map(role => (
-            <Box key={role.id} sx={{ mb: 2, p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1 }}>
-              <Typography variant="subtitle2">{role.name}</Typography>
-              <TextField
-                label="Voice ID"
-                size="small"
-                fullWidth
-                defaultValue={role.voice_id || ""}
-                sx={{ mt: 1 }}
-                id={`voice-${role.id}`}
-              />
-              <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                <Button
-                  size="small"
-                  variant="contained"
-                  onClick={() => {
-                    const input = document.getElementById(`voice-${role.id}`) as HTMLInputElement;
-                    if (input?.value) handleChangeVoice(role.id, { voice_id: input.value });
-                  }}
-                >
-                  确认切换
-                </Button>
-              </Stack>
-            </Box>
-          ))}
-        </Box>
-      </Drawer>
-
-    </Container>
+    </div>
   );
 }

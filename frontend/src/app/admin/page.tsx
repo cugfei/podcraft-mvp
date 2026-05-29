@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import {
   Container, Typography, Box, Grid, Card, CardContent,
   TextField, Button, IconButton, Table, TableBody, TableCell,
@@ -50,10 +52,35 @@ const MODULES: { key: ModuleKey; label: string; desc: string; icon: React.ReactN
 ];
 
 export default function AdminPage() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
   const [activeModule, setActiveModule] = React.useState<ModuleKey | null>(null);
   const [snackbar, setSnackbar] = React.useState<{ open: boolean; message: string; severity: "success" | "error" }>({
     open: false, message: "", severity: "success",
   });
+
+  // 权限检查：未登录跳转登录页，非管理员跳转首页
+  React.useEffect(() => {
+    if (!loading) {
+      if (!user) {
+        router.push("/login");
+      } else if (user.role !== "admin") {
+        router.push("/");
+      }
+    }
+  }, [user, loading, router]);
+
+  if (loading) {
+    return (
+      <Container sx={{ py: 8, textAlign: "center" }}>
+        <Typography>加载中...</Typography>
+      </Container>
+    );
+  }
+
+  if (!user || user.role !== "admin") {
+    return null;
+  }
 
   const showMsg = (msg: string, sev: "success" | "error" = "success") =>
     setSnackbar({ open: true, message: msg, severity: sev });
@@ -713,6 +740,7 @@ function ProviderConfigModule({ showMsg }: { showMsg: (m: string, s?: "success" 
           <FormControl fullWidth>
             <InputLabel>首选 Provider</InputLabel>
             <Select value={config.primary} label="首选 Provider" onChange={(e) => setConfig({ ...config, primary: e.target.value })}>
+              <MenuItem value="mimo">MiMo v2.5 (小米)</MenuItem>
               <MenuItem value="minimax">MiniMax</MenuItem>
               <MenuItem value="edge-tts">Edge-TTS</MenuItem>
             </Select>
@@ -722,8 +750,10 @@ function ProviderConfigModule({ showMsg }: { showMsg: (m: string, s?: "success" 
             <Select value={config.fallback} label="降级 Provider" onChange={(e) => setConfig({ ...config, fallback: e.target.value })}>
               <MenuItem value="edge-tts">Edge-TTS</MenuItem>
               <MenuItem value="minimax">MiniMax</MenuItem>
+              <MenuItem value="mimo">MiMo v2.5 (小米)</MenuItem>
             </Select>
           </FormControl>
+          <TextField label="MiMo API Key" fullWidth type="password" value={config.mimo_api_key} onChange={(e) => setConfig({ ...config, mimo_api_key: e.target.value })} placeholder="设置小米 MiMo API Key" />
           <TextField label="MiniMax API Key" fullWidth type="password" value={config.minimax_api_key} onChange={(e) => setConfig({ ...config, minimax_api_key: e.target.value })} />
           <FormControl fullWidth>
             <InputLabel>Edge-TTS 启用</InputLabel>

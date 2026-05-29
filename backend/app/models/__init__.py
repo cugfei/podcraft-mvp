@@ -10,6 +10,7 @@ from app.models.segment import PodcastSegment
 from app.models.synthesis_task import SynthesisTask
 from app.models.audio_asset import AudioAsset
 from app.models.analytics import AnalyticsEvent, UserActivity
+from app.models.provider_config import ProviderConfig
 
 
 __all__ = [
@@ -26,6 +27,7 @@ __all__ = [
     "PodcastSegment",
     "SynthesisTask",
     "AudioAsset",
+    "ProviderConfig",
     "AnalyticsEvent",
     "UserActivity",
 ]

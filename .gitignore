@@ -72,3 +72,22 @@ frontend/next-env.d.ts
 backend/login_response.json
 backend/token.txt
 .workbuddy/
+
+# ===== 测试文件 =====
+test_*.py
+test_*.png
+
+# ===== 后端生成的音频文件 =====
+backend/static/audio/
+
+# ===== Playwright CLI =====
+.playwright-cli/
+
+# ===== TypeScript build info =====
+*.tsbuildinfo
+
+# ===== 后端生成的静态目录 =====
+backend/app/static/
+
+# ===== 本地后端日志 =====
+backend/backend*.log

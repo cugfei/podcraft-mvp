@@ -424,7 +424,7 @@ export async function listPodcasts(params?: {
   if (params?.limit !== undefined) qs.set("limit", String(params.limit));
   const q = qs.toString();
   return get<{ items: PodcastProject[]; total: number; skip: number; limit: number }>(
-    `/api/podcasts/list${q ? "?" + q : ""}`
+    `/api/v1/podcasts/list${q ? "?" + q : ""}`
   );
 }
 
@@ -432,12 +432,12 @@ export async function listPodcasts(params?: {
 export async function createPodcast(
   data: CreatePodcastRequest
 ): Promise<PodcastProject> {
-  return post<PodcastProject>("/api/podcasts/", data);
+  return post<PodcastProject>("/api/v1/podcasts/", data);
 }
 
 /** Get a single podcast project by ID. */
 export async function getPodcast(projectId: string): Promise<PodcastProject> {
-  return get<PodcastProject>(`/api/podcasts/${projectId}`);
+  return get<PodcastProject>(`/api/v1/podcasts/${projectId}`);
 }
 
 /** Update a podcast project. */
@@ -445,12 +445,12 @@ export async function updatePodcast(
   projectId: string,
   data: UpdatePodcastRequest
 ): Promise<PodcastProject> {
-  return put<PodcastProject>(`/api/podcasts/${projectId}`, data);
+  return put<PodcastProject>(`/api/v1/podcasts/${projectId}`, data);
 }
 
 /** Delete a podcast project. */
 export async function deletePodcast(projectId: string): Promise<void> {
-  return del<void>(`/api/podcasts/${projectId}`);
+  return del<void>(`/api/v1/podcasts/${projectId}`);
 }
 
 /** Update a podcast's script. */
@@ -458,7 +458,7 @@ export async function updateScript(
   projectId: string,
   data: UpdateScriptRequest
 ): Promise<PodcastScript> {
-  return put<PodcastScript>(`/api/podcasts/${projectId}/script`, data);
+  return put<PodcastScript>(`/api/v1/podcasts/${projectId}/script`, data);
 }
 
 // ---------------------------------------------------------------------------
@@ -487,7 +487,7 @@ export interface ReorderSegmentsRequest {
 export async function listSegments(
   projectId: string
 ): Promise<PodcastSegment[]> {
-  return get<PodcastSegment[]>(`/api/podcasts/${projectId}/segments`);
+  return get<PodcastSegment[]>(`/api/v1/segments/podcasts/${projectId}/segments`);
 }
 
 /** Create a new segment. */
@@ -495,7 +495,7 @@ export async function createSegment(
   projectId: string,
   data: CreateSegmentRequest
 ): Promise<PodcastSegment> {
-  return post<PodcastSegment>(`/api/podcasts/${projectId}/segments`, data);
+  return post<PodcastSegment>(`/api/v1/segments/podcasts/${projectId}/segments`, data);
 }
 
 /** Update a segment. */
@@ -503,12 +503,12 @@ export async function updateSegment(
   segmentId: string,
   data: UpdateSegmentRequest
 ): Promise<PodcastSegment> {
-  return put<PodcastSegment>(`/api/segments/${segmentId}`, data);
+  return put<PodcastSegment>(`/api/v1/segments/segments/${segmentId}`, data);
 }
 
 /** Delete a segment. */
 export async function deleteSegment(segmentId: string): Promise<void> {
-  return del<void>(`/api/segments/${segmentId}`);
+  return del<void>(`/api/v1/segments/segments/${segmentId}`);
 }
 
 /** Reorder segments. */
@@ -517,7 +517,7 @@ export async function reorderSegments(
   segmentIds: string[]
 ): Promise<PodcastSegment[]> {
   return post<PodcastSegment[]>(
-    `/api/podcasts/${projectId}/segments/reorder`,
+    `/api/v1/segments/podcasts/${projectId}/segments/reorder`,
     { segment_ids: segmentIds }
   );
 }
@@ -526,14 +526,14 @@ export async function reorderSegments(
 export async function synthesizeSegment(
   segmentId: string
 ): Promise<{ status: string }> {
-  return post<{ status: string }>(`/api/segments/${segmentId}/synthesize`);
+  return post<{ status: string }>(`/api/v1/segments/segments/${segmentId}/synthesize`);
 }
 
 /** Upload an audio file (reference, background music, etc.). */
 export async function uploadAudio(file: File): Promise<{ id: string; filename: string; file_path: string }> {
   const formData = new FormData();
   formData.append("file", file);
-  const url = `${API_BASE_URL}/api/upload/audio`;
+  const url = `${API_BASE_URL}/api/v1/upload/audio`;
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const headers: Record<string, string> = {};
   if (token) {
@@ -563,7 +563,7 @@ export async function rebuildAudio(
   projectId: string
 ): Promise<{ id: string; url: string; duration_ms: number }> {
   return post<{ id: string; url: string; duration_ms: number }>(
-    `/api/podcasts/${projectId}/rebuild-audio`
+    `/api/v1/podcasts/${projectId}/rebuild-audio`
   );
 }
 
@@ -579,12 +579,12 @@ export async function changeVoice(
   roleId: string,
   data: ChangeVoiceRequest
 ): Promise<PodcastRole> {
-  return post<PodcastRole>(`/api/podcasts/roles/${roleId}/change-voice`, data);
+  return post<PodcastRole>(`/api/v1/podcasts/roles/${roleId}/change-voice`, data);
 }
 
 /** Get a single segment by ID (for polling synthesis status). */
 export async function getSegment(segmentId: string): Promise<PodcastSegment> {
-  return get<PodcastSegment>(`/api/segments/${segmentId}`);
+  return get<PodcastSegment>(`/api/v1/segments/segments/${segmentId}`);
 }
 
 /** Helper: convert a backend audio asset URL to a full, usable src. */
@@ -604,7 +604,7 @@ export interface CreditTx { id: string; user_id: string; type: string; amount: n
 export interface AdminPodcast { id: string; title: string; mode: string; status: string; target_duration: number; created_at: string; }
 export interface AdminTask { id: string; project_id: string; user_id: string; type: string; status: string; total_segments: number; completed_segments: number; error_message: string; created_at: string; }
 export interface AdminVoice { id: string; provider: string; provider_voice_id: string; name: string; language: string; is_cloned: boolean; }
-export interface ProviderConfig { primary: string; fallback: string; minimax_api_key: string; edge_tts_enabled: boolean; }
+export interface ProviderConfig { primary: string; fallback: string; minimax_api_key: string; mimo_api_key: string; edge_tts_enabled: boolean; }
 export interface Plan { id: string; name: string; price: number; credits: number; }
 
 export async function listAdminUsers(q = "", status = "", skip = 0, limit = 20): Promise<{ total: number; items: AdminUser[] }> {
@@ -703,4 +703,27 @@ export async function updatePlan(planId: string, data: Partial<Plan>): Promise<P
 
 export async function deletePlan(planId: string): Promise<void> {
   return del<void>(`/api/v1/admin/plans/${planId}`);
+}
+
+// ---------------------------------------------------------------------------
+// Voice API (Public)
+// ---------------------------------------------------------------------------
+
+export interface Voice {
+  id: string;
+  name: string;
+  provider: string;
+  provider_voice_id: string;
+  gender: string;
+  language: string;
+  preview_text?: string;
+}
+
+export async function getVoices(language?: string, gender?: string, provider?: string): Promise<Voice[]> {
+  const params = new URLSearchParams();
+  if (language) params.set("language", language);
+  if (gender) params.set("gender", gender);
+  if (provider) params.set("provider", provider);
+  const query = params.toString();
+  return get<Voice[]>(`/api/v1/voices${query ? `?${query}` : ""}`);
 }

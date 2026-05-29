@@ -39,11 +39,12 @@ class VoiceListResponse(BaseModel):
 def list_voices(
     language: Optional[str] = None,
     gender: Optional[str] = None,
+    provider: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     """
     Return preset voice list.
-    Optional filters: language, gender.
+    Optional filters: language, gender, provider.
     """
     query = db.query(VoicePreset).filter(VoicePreset.status == "active")
 
@@ -51,6 +52,8 @@ def list_voices(
         query = query.filter(VoicePreset.language == language)
     if gender:
         query = query.filter(VoicePreset.gender == gender)
+    if provider:
+        query = query.filter(VoicePreset.provider == provider)
 
     voices = query.order_by(VoicePreset.name).all()
 
@@ -110,9 +113,9 @@ def list_voices(
             "id": str(v.id),
             "name": v.name,
             "provider": v.provider,
+            "provider_voice_id": v.provider_voice_id,
             "gender": v.gender,
             "language": v.language,
-            "accent": v.accent,
             "preview_text": v.voice_params.get("preview_text") if v.voice_params else None,
         }
         for v in voices

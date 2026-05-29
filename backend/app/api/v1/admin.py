@@ -282,6 +282,7 @@ def create_voice(
         provider_voice_id=body.get("provider_voice_id", ""),
         name=body.get("name", ""),
         language=body.get("language", "zh"),
+        gender=body.get("gender"),
         voice_params=body.get("voice_params"),
         is_cloned=body.get("is_cloned", False),
     )
@@ -325,37 +326,35 @@ def delete_voice(
 
 
 # ---------------------------------------------------------------------------
-# 7. Provider 配置（MVP：简单键值存储）
+# 7. Provider 配置（DB 持久化）
 # ---------------------------------------------------------------------------
 
-# In-memory provider config (MVP — replace with DB model later)
-_PROVIDER_CONFIG = {
-    "primary": "minimax",
-    "fallback": "edge-tts",
-    "minimax_api_key": "",
-    "edge_tts_enabled": True,
-}
+from app.database import get_session
+from app.models.provider_config import load_provider_config, update_provider_config
 
 
 @router.get("/providers")
 def get_provider_config(
     _admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_session),
 ):
-    """Get TTS Provider configuration."""
-    return success(data=_PROVIDER_CONFIG)
+    """Get TTS Provider configuration from DB."""
+    config = load_provider_config(db)
+    # Convert boolean-ish strings to actual bool for edge_tts_enabled
+    config["edge_tts_enabled"] = config.get("edge_tts_enabled", "true").lower() == "true"
+    return success(data=config)
 
 
 @router.patch("/providers")
-def update_provider_config(
+def update_provider_config_endpoint(
     body: dict,
     _admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_session),
 ):
-    """Update TTS Provider configuration."""
-    global _PROVIDER_CONFIG
-    for key in body:
-        if key in _PROVIDER_CONFIG:
-            _PROVIDER_CONFIG[key] = body[key]
-    return success(data=_PROVIDER_CONFIG, message="Provider 配置已更新")
+    """Update TTS Provider configuration and persist to DB."""
+    updated = update_provider_config(db, body)
+    updated["edge_tts_enabled"] = updated.get("edge_tts_enabled", "true").lower() == "true"
+    return success(data=updated, message="Provider 配置已更新")
 
 
 # ---------------------------------------------------------------------------

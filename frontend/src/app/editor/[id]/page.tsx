@@ -312,11 +312,20 @@ export default function EditorPage() {
   const [synthesizingId, setSynthesizingId] = React.useState<string | null>(null);
   const [synthesisAudio, setSynthesisAudio] = React.useState<{url: string; filename: string} | null>(null);
 
+  // SSE
+  const [sseActive, setSseActive] = React.useState(false);
+  const [sseProgress, setSseProgress] = React.useState<{current: number; total: number; message: string}>({ current: 0, total: 0, message: "" });
+  const sseAbortRef = React.useRef<AbortController | null>(null);
+
+  // Progressive audio playback (dual-buffer)
+  const [progressiveQueue, setProgressiveQueue] = React.useState<Array<{url: string; segmentId: string; durationMs: number}>>([]);
+  const [progressivePlayingIndex, setProgressivePlayingIndex] = React.useState(-1);
+  const progressiveAudioRef0 = React.useRef<HTMLAudioElement>(null);
+  const progressiveAudioRef1 = React.useRef<HTMLAudioElement>(null);
+  const [progressiveActivePlayer, setProgressiveActivePlayer] = React.useState(0);
+
   // Right panel (settings) for solo mode
   const [rightPanelTab, setRightPanelTab] = React.useState<"settings" | "history">("settings");
-
-  // Polling
-  const pollingRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Undo/redo
   const undoStack = React.useRef<Array<{ segs: PodcastSegment[] }>>([]);
@@ -675,7 +684,192 @@ export default function EditorPage() {
     }
   };
 
-  // Synthesize
+  // ── SSE helper: read stream and dispatch events ──
+  const consumeSSEStream = async (response: Response) => {
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const event = JSON.parse(line.slice(6));
+              dispatchSSEEvent(event);
+            } catch { /* skip malformed JSON */ }
+          }
+        }
+      }
+    } finally {
+      try { reader.releaseLock(); } catch { /* noop */ }
+    }
+  };
+
+  // ── SSE event dispatcher ──
+  const dispatchSSEEvent = (event: Record<string, unknown>) => {
+    switch (event.type) {
+      case "progress":
+        setSseProgress({
+          current: (event.current as number) || 0,
+          total: (event.total as number) || 0,
+          message: (event.message as string) || "",
+        });
+        break;
+
+      case "segment_complete": {
+        const sid = event.segment_id as string;
+        const audioUrl = event.audio_url as string;
+        setSegments((prev) =>
+          prev.map((s) =>
+            s.id === sid
+              ? {
+                  ...s,
+                  status: "completed" as const,
+                  audio_asset: {
+                    id: sid,
+                    url: audioUrl,
+                    duration_ms: (event.duration_ms as number) || 0,
+                    format: "wav",
+                  },
+                }
+              : s
+          )
+        );
+        setProgressiveQueue((prev) => [
+          ...prev,
+          {
+            url: `${API_BASE}${audioUrl}`,
+            segmentId: sid,
+            durationMs: (event.duration_ms as number) || 0,
+          },
+        ]);
+        break;
+      }
+
+      case "batch_complete": {
+        // Batch synthesis: multiple segments share one audio file
+        const batchIds = event.segment_ids as string[];
+        const batchAudioUrl = event.audio_url as string;
+        const batchDuration = (event.duration_ms as number) || 0;
+
+        // Update all segments in the batch
+        setSegments((prev) =>
+          prev.map((s) =>
+            batchIds.includes(s.id)
+              ? {
+                  ...s,
+                  status: "completed" as const,
+                  audio_asset: {
+                    id: s.id,
+                    url: batchAudioUrl,
+                    duration_ms: batchDuration,
+                    format: "wav",
+                  },
+                }
+              : s
+          )
+        );
+        // Add batch audio to progressive queue once (not per-segment)
+        setProgressiveQueue((prev) => [
+          ...prev,
+          {
+            url: `${API_BASE}${batchAudioUrl}`,
+            segmentId: batchIds[0],
+            durationMs: batchDuration,
+          },
+        ]);
+        break;
+      }
+
+      case "segment_failed": {
+        const fid = event.segment_id as string;
+        setSegments((prev) =>
+          prev.map((s) =>
+            s.id === fid
+              ? { ...s, status: "failed" as const, error_message: (event.error as string) || "合成失败" }
+              : s
+          )
+        );
+        break;
+      }
+
+      case "complete": {
+        const completed = (event.total_completed as number) || 0;
+        const failed = (event.total_failed as number) || 0;
+        const mergeUrl = event.full_audio_url as string | null;
+
+        setSseActive(false);
+        setSynthesizingId(null);
+
+        if (failed === 0) {
+          setSuccessMsg(`全部 ${completed} 个片段合成完成`);
+        } else {
+          setSuccessMsg(`${completed} 成功, ${failed} 失败`);
+        }
+
+        if (mergeUrl) {
+          setSynthesisAudio({ url: `${API_BASE}${mergeUrl}`, filename: `full_${projectId}.wav` });
+        }
+        break;
+      }
+
+      case "error":
+        setError(event.message as string);
+        setSseActive(false);
+        setSynthesizingId(null);
+        break;
+    }
+  };
+
+  // ── SSE: start batch synthesis stream ──
+  const startSSESynthesis = async (segmentIds: string[]) => {
+    setSseActive(true);
+    setSseProgress({ current: 0, total: segmentIds.length, message: "连接中..." });
+
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    const controller = new AbortController();
+    sseAbortRef.current = controller;
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/v1/segments/podcasts/${projectId}/synthesize-stream`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ segment_ids: segmentIds }),
+          signal: controller.signal,
+        }
+      );
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        setError(err.detail || `HTTP ${response.status}`);
+        setSseActive(false);
+        setSynthesizingId(null);
+        return;
+      }
+
+      await consumeSSEStream(response);
+    } catch (err: unknown) {
+      if ((err as Error).name === "AbortError") return;
+      setError(err instanceof Error ? err.message : "SSE 连接失败");
+      setSseActive(false);
+      setSynthesizingId(null);
+    }
+  };
+
+  // Synthesize (solo mode)
   const handleSynthesize = async (segId: string) => {
     if (insufficientBalance) {
       setError("余额不足，请充值后再试");
@@ -684,17 +878,14 @@ export default function EditorPage() {
     setError("");
     setSynthesizingId(segId);
     setSynthesisAudio(null);
-    try {
-      await apiFetch(`/api/v1/segments/segments/${segId}/synthesize`, { method: "POST" });
-      // Update local segment status so polling can detect it
-      setSegments((prev) =>
-        prev.map((s) => (s.id === segId ? { ...s, status: "queued" as const } : s))
-      );
-      setSuccessMsg(`片段 ${segId.slice(0, 8)} 合成已开始`);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "合成失败");
-      setSynthesizingId(null);
-    }
+    setProgressiveQueue([]);
+    setProgressivePlayingIndex(-1);
+
+    setSegments((prev) =>
+      prev.map((s) => (s.id === segId ? { ...s, status: "queued" as const } : s))
+    );
+
+    startSSESynthesis([segId]);
   };
 
   // Batch synthesize all non-completed segments (duo mode)
@@ -706,6 +897,8 @@ export default function EditorPage() {
     }
     setError("");
     setSynthesisAudio(null);
+    setProgressiveQueue([]);
+    setProgressivePlayingIndex(-1);
 
     // Check if voices are selected (duo mode)
     if (isDuoMode) {
@@ -727,33 +920,23 @@ export default function EditorPage() {
           }
         }
       }
-      // Update each role's voice_id via API
       await Promise.all(
         Object.entries(roleMap).map(([roleId, voiceId]) =>
           apiFetch(`/api/v1/podcasts/roles/${roleId}/change-voice`, {
             method: "POST",
             body: JSON.stringify({ voice_id: voiceId, speed: 1.0, pitch: 0, volume: 1.0 }),
-          }).catch(() => {/* ignore voice sync errors */})
+          }).catch(() => {/* ignore */})
         )
       );
     }
 
-    let successCount = 0;
-    for (const seg of toSynth) {
-      try {
-        await apiFetch(`/api/v1/segments/segments/${seg.id}/synthesize`, { method: "POST" });
-        setSegments((prev) =>
-          prev.map((s) => (s.id === seg.id ? { ...s, status: "queued" as const } : s))
-        );
-        successCount++;
-      } catch (err: unknown) {
-        setError(`${err instanceof Error ? err.message : "合成失败"} (片段 ${seg.id.slice(0, 8)})`);
-      }
-    }
-    if (successCount > 0) {
-      setSynthesizingId(toSynth[0].id);
-      setSuccessMsg(`已提交 ${successCount}/${toSynth.length} 个片段合成`);
-    }
+    const segmentIds = toSynth.map((s) => s.id);
+    setSegments((prev) =>
+      prev.map((s) => (segmentIds.includes(s.id) ? { ...s, status: "queued" as const } : s))
+    );
+    setSynthesizingId(toSynth[0].id);
+
+    startSSESynthesis(segmentIds);
   };
 
   // Build audio
@@ -831,86 +1014,90 @@ export default function EditorPage() {
   };
 
   // -----------------------------------------------------------------------
-  // Polling
+  // Progressive audio playback (dual-buffer, seamless switching)
   // -----------------------------------------------------------------------
-  // Use a ref to track active segment IDs to avoid closure issues with setInterval
-  const activeSegmentIdsRef = React.useRef<string[]>([]);
 
+  // Ref for stable onEnded callback — always reads current queue length
+  const progressiveQueueLenRef = React.useRef(0);
+  progressiveQueueLenRef.current = progressiveQueue.length;
+
+  // Kick off playback when first segment lands in queue
   React.useEffect(() => {
-    const active = segments
-      .filter((s) => s.status === "queued" || s.status === "synthesizing")
-      .map((s) => s.id);
+    if (progressiveQueue.length > 0 && progressivePlayingIndex === -1) {
+      setProgressivePlayingIndex(0);
+    }
+  }, [progressiveQueue, progressivePlayingIndex]);
 
-    if (active.length === 0) {
-      activeSegmentIdsRef.current = [];
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
-      return;
+  // Play / preload when index advances
+  React.useEffect(() => {
+    const idx = progressivePlayingIndex;
+    if (idx < 0 || idx >= progressiveQueue.length) return;
+
+    const url = progressiveQueue[idx].url;
+    // Even index → audio 0, odd → audio 1
+    const playerIdx = idx % 2;
+    const ref = playerIdx === 0 ? progressiveAudioRef0 : progressiveAudioRef1;
+    const otherRef = playerIdx === 0 ? progressiveAudioRef1 : progressiveAudioRef0;
+
+    // Stop the other player
+    if (otherRef.current) {
+      otherRef.current.pause();
+      otherRef.current.removeAttribute("src");
     }
 
-    activeSegmentIdsRef.current = active;
+    if (!ref.current) return;
 
-    if (pollingRef.current) return;
-    pollingRef.current = setInterval(async () => {
-      try {
-        const ids = activeSegmentIdsRef.current;
-        if (ids.length === 0) return;
+    ref.current.src = url;
+    ref.current.load();
 
-        const updated = await Promise.all(
-          ids.map((id) => apiFetch<PodcastSegment>(`/api/v1/segments/segments/${id}`))
-        );
-        setSegments((prev) =>
-          prev.map((s) => {
-            const u = updated.find((r) => r && r.id === s.id);
-            return u ? { ...s, ...u } : s;
-          })
-        );
-        // Check if any completed
-        let completedIds: string[] = [];
-        for (const u of updated) {
-          if (u && u.status === "completed" && u.audio_asset?.url) {
-            setSynthesizingId(null);
-            completedIds.push(u.id);
-            // For solo mode, show individual segment player immediately
-            if (!isDuoMode) {
-              const audioUrl = `${API_BASE}${u.audio_asset.url}`;
-              setSynthesisAudio({ url: audioUrl, filename: `segment_${u.id}.wav` });
-              setSuccessMsg("合成完成！");
-            }
-          } else if (u && u.status === "failed") {
-            setSynthesizingId(null);
-            setError(u.error_message || "合成失败");
-          }
-        }
-
-        // For duo mode: check if ALL tracked segments completed, then auto-merge
-        if (isDuoMode && completedIds.length > 0) {
-          const stillActive = updated.filter((u) => u.status !== "completed");
-          if (stillActive.length === 0 && ids.length > 0) {
-            try {
-              const result = await apiFetch<{ url: string }>(`/api/v1/podcasts/${projectId}/rebuild-audio`, {
-                method: "POST",
-              });
-              const mergedUrl = `${API_BASE}${result.url}`;
-              setSynthesisAudio({ url: mergedUrl, filename: `full_${projectId}.wav` });
-              setSuccessMsg("所有片段合成完成！");
-            } catch {
-              setSuccessMsg("片段已合成完成");
-            }
-          }
-        }
-      } catch { /* ignore */ }
-    }, 3000);
-
-    return () => {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
+    const doPlay = () => {
+      ref.current?.play().catch(() => {});
+      setProgressiveActivePlayer(playerIdx);
     };
-  }, [segments]);
+
+    // Wait for sufficient data before playing
+    if (ref.current.readyState >= 3 /* HAVE_FUTURE_DATA */) {
+      doPlay();
+    } else {
+      ref.current.addEventListener("canplay", doPlay, { once: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [progressivePlayingIndex]);
+
+  // Advance to next on ended — uses ref to avoid stale closure
+  const handleProgressiveAudioEnded = React.useCallback(() => {
+    setProgressivePlayingIndex((prev) => {
+      const next = prev + 1;
+      return next < progressiveQueueLenRef.current ? next : prev;
+    });
+  }, []);
+
+  // Stop progressive playback when final merged audio arrives
+  React.useEffect(() => {
+    if (synthesisAudio) {
+      [progressiveAudioRef0, progressiveAudioRef1].forEach((ref) => {
+        if (ref.current) {
+          ref.current.pause();
+          ref.current.removeAttribute("src");
+        }
+      });
+      setProgressivePlayingIndex(-1);
+    }
+  }, [synthesisAudio]);
+
+  // Abort SSE + stop audio on unmount
+  React.useEffect(() => {
+    return () => {
+      if (sseAbortRef.current) {
+        sseAbortRef.current.abort();
+      }
+      progressiveAudioRef0.current?.pause();
+      progressiveAudioRef1.current?.pause();
+    };
+  }, []);
+
+  // -----------------------------------------------------------------------
+  // Render helpers
 
   // -----------------------------------------------------------------------
   // Render helpers
@@ -1143,8 +1330,8 @@ export default function EditorPage() {
               <Icons.Play /> {synthesizingId ? "合成中..." : "开始合成"}
             </button>
 
-            {/* Synthesis progress bar */}
-            {synthesizingId && (
+            {/* Synthesis progress (only when not using SSE) */}
+            {synthesizingId && !sseActive && (
               <div className="mx-5 mb-4">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin" />
@@ -1153,6 +1340,43 @@ export default function EditorPage() {
                 <div className="w-full h-2 bg-bg-soft rounded-full overflow-hidden">
                   <div className="h-full bg-success rounded-full animate-pulse" style={{ width: "60%" }} />
                 </div>
+              </div>
+            )}
+
+            {/* SSE Progress */}
+            {sseActive && (
+              <div className="mx-5 mb-3 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-blue-600 text-sm animate-pulse">●</span>
+                  <span className="text-sm font-semibold text-text">{sseProgress.message}</span>
+                  {sseProgress.total > 0 && (
+                    <span className="text-xs text-secondary ml-auto">
+                      {sseProgress.current}/{sseProgress.total}
+                    </span>
+                  )}
+                </div>
+                {sseProgress.total > 0 && (
+                  <div className="w-full h-1.5 bg-blue-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.max(3, Math.round((sseProgress.current / sseProgress.total) * 100))}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+            {/* Progressive Audio (live playback during synthesis) */}
+            {progressiveQueue.length > 0 && !synthesisAudio && (
+              <div className="mx-5 mb-4 p-3 bg-green-50 border border-green-200 rounded-xl">
+                <div className="flex items-center gap-2">
+                  <span className="text-green-600 text-sm animate-pulse">▶</span>
+                  <span className="text-xs font-semibold text-text">实时播放中</span>
+                  <span className="text-xs text-secondary ml-auto">
+                    {progressivePlayingIndex + 1}/{progressiveQueue.length}
+                  </span>
+                </div>
+                <audio ref={progressiveAudioRef0} className="hidden" onEnded={handleProgressiveAudioEnded} />
+                <audio ref={progressiveAudioRef1} className="hidden" onEnded={handleProgressiveAudioEnded} />
               </div>
             )}
 
@@ -1794,7 +2018,7 @@ export default function EditorPage() {
       </div>
 
       {/* Synthesis progress bar (duo mode) */}
-      {synthesizingId && (
+      {synthesizingId && !sseActive && (
         <div className="mt-6 bg-bg-soft border border-line rounded-xl p-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin" />
@@ -1806,6 +2030,42 @@ export default function EditorPage() {
         </div>
       )}
 
+      {/* SSE Progress (duo) */}
+      {sseActive && (
+        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-blue-600 text-sm animate-pulse">●</span>
+            <span className="text-sm font-semibold text-text">{sseProgress.message}</span>
+            {sseProgress.total > 0 && (
+              <span className="text-xs text-secondary ml-auto">
+                {sseProgress.current}/{sseProgress.total}
+              </span>
+            )}
+          </div>
+          {sseProgress.total > 0 && (
+            <div className="w-full h-1.5 bg-blue-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                style={{ width: `${Math.max(3, Math.round((sseProgress.current / sseProgress.total) * 100))}%` }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+      {/* Progressive Audio (duo) */}
+      {progressiveQueue.length > 0 && !synthesisAudio && (
+        <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-xl">
+          <div className="flex items-center gap-2">
+            <span className="text-green-600 text-sm animate-pulse">▶</span>
+            <span className="text-xs font-semibold text-text">实时播放中</span>
+            <span className="text-xs text-secondary ml-auto">
+              {progressivePlayingIndex + 1}/{progressiveQueue.length}
+            </span>
+          </div>
+          <audio ref={progressiveAudioRef0} className="hidden" onEnded={handleProgressiveAudioEnded} />
+          <audio ref={progressiveAudioRef1} className="hidden" onEnded={handleProgressiveAudioEnded} />
+        </div>
+      )}
       {/* Synthesis result audio player (duo mode) */}
       {synthesisAudio && (
         <div className="mt-6 p-5 bg-bg-soft border border-line rounded-xl">

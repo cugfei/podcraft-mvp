@@ -31,6 +31,7 @@ _CONFIG_DEFAULTS: dict[str, str] = {
     "primary": "mimo",
     "fallback": "edge-tts",
     "minimax_api_key": "",
+    "minimax_api_base": "https://api.minimaxi.com",
     "mimo_api_key": "",
     "mimo_api_base": "https://token-plan-cn.xiaomimimo.com/v1",
     "edge_tts_enabled": "true",

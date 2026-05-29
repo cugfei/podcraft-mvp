@@ -67,6 +67,8 @@ export default function CreatePage() {
   const [loading, setLoading] = React.useState(false);
   const [balance, setBalance] = React.useState<number | null>(null);
   const [previewLoading, setPreviewLoading] = React.useState<string | null>(null);
+  const [parseLoading, setParseLoading] = React.useState(false);
+  const [parseLogs, setParseLogs] = React.useState<string[]>([]);
 
   const charCount = inputType === "text" ? text.length : topic.length;
   const estimatedCredits = charCount + 20; // 字数×1 + 脚本生成20积分
@@ -87,6 +89,75 @@ export default function CreatePage() {
     loadBalance();
     return () => { cancelled = true; };
   }, []);
+
+  // ── Parse URL / PDF content ──
+  const handleParseUrl = async () => {
+    if (!url.trim()) return;
+    setParseLoading(true);
+    setParseLogs([]);
+    try {
+      const token = localStorage.getItem("token");
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8033";
+      const res = await fetch(`${API_BASE}/api/v1/parse/url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ url: url.trim() }),
+      });
+      const body = await res.json();
+      if (body.code === 0 && body.data?.success) {
+        setText(body.data.content);
+        setInputType("text");
+        setParseLogs(body.data.logs || []);
+        setError("");
+      } else {
+        setError(body.data?.logs?.[0] || body.message || "解析失败");
+        setParseLogs(body.data?.logs || []);
+      }
+    } catch {
+      setError("网络请求失败，请检查后端服务");
+    } finally {
+      setParseLoading(false);
+    }
+  };
+
+  const handleParsePdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 50 * 1024 * 1024) {
+      setError("文件过大，限制 50 MB");
+      return;
+    }
+    setParseLoading(true);
+    setParseLogs([]);
+    try {
+      const token = localStorage.getItem("token");
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8033";
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("max_length", "15000");
+      const res = await fetch(`${API_BASE}/api/v1/parse/pdf`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const body = await res.json();
+      if (body.code === 0 && body.data?.success) {
+        setText(body.data.content);
+        setInputType("text");
+        setParseLogs(body.data.logs || []);
+        setError("");
+      } else {
+        setError(body.data?.logs?.[0] || body.message || "解析失败");
+        setParseLogs(body.data?.logs || []);
+      }
+    } catch {
+      setError("网络请求失败，请检查后端服务");
+    } finally {
+      setParseLoading(false);
+      // Reset file input
+      e.target.value = "";
+    }
+  };
 
   // 音色试听（mock：模拟 2 秒播放）
   const handlePreview = async (voice: string) => {
@@ -157,6 +228,7 @@ export default function CreatePage() {
           <ToggleButton value="topic">主题输入</ToggleButton>
           <ToggleButton value="text">文档粘贴</ToggleButton>
           <ToggleButton value="url">URL 解析</ToggleButton>
+          <ToggleButton value="pdf">PDF 上传</ToggleButton>
         </ToggleButtonGroup>
       </Box>
 
@@ -190,14 +262,50 @@ export default function CreatePage() {
         />
       )}
       {inputType === "url" && (
-        <TextField
-          label="URL 地址"
-          placeholder="https://example.com/article"
-          fullWidth
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          sx={{ mb: 3, "& .MuiInputBase-root": { minHeight: "44px" } }}
-        />
+        <Box sx={{ mb: 3 }}>
+          <TextField
+            label="URL 地址"
+            placeholder="https://example.com/article"
+            fullWidth
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            disabled={parseLoading}
+            sx={{ "& .MuiInputBase-root": { minHeight: "44px" } }}
+          />
+          <Button
+            variant="outlined"
+            onClick={handleParseUrl}
+            disabled={parseLoading || !url.trim()}
+            sx={{ mt: 1 }}
+            fullWidth
+          >
+            {parseLoading ? <CircularProgress size={18} sx={{ mr: 1 }} /> : null}
+            解析网页内容
+          </Button>
+        </Box>
+      )}
+      {inputType === "pdf" && (
+        <Box sx={{ mb: 3, p: 2, border: "1px dashed", borderColor: "grey.400", borderRadius: 2, textAlign: "center" }}>
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            上传 PDF 文件（最大 50 MB），自动提取文本内容
+          </Typography>
+          <Button
+            variant="outlined"
+            component="label"
+            disabled={parseLoading}
+            sx={{ mt: 1 }}
+          >
+            {parseLoading ? <CircularProgress size={18} sx={{ mr: 1 }} /> : null}
+            选择 PDF 文件
+            <input type="file" hidden accept=".pdf" onChange={handleParsePdf} />
+          </Button>
+        </Box>
+      )}
+      {/* Parse logs */}
+      {parseLogs.length > 0 && (
+        <Alert severity={parseLogs.some(l => l.includes("失败") || l.includes("403")) ? "warning" : "info"} sx={{ mb: 2 }}>
+          {parseLogs.map((l, i) => <div key={i}>{l}</div>)}
+        </Alert>
       )}
 
       {/* 文本长度超限提示 */}

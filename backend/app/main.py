@@ -24,6 +24,7 @@ from app.api.v1.debug_auth import router as debug_auth_router
 from app.api.v1.analytics import router as analytics_router
 from app.api.v1.credits import router as credits_router
 from app.api.v1.orders import router as orders_router
+from app.api.v1.parse import router as parse_router
 from app.exceptions import AppException
 from app.middleware.logging import RequestLoggingMiddleware
 from app.utils.response import success, error
@@ -131,6 +132,7 @@ app.include_router(script_router, prefix="/api/v1")
 app.include_router(analytics_router, prefix="/api/v1")
 app.include_router(credits_router, prefix="/api/v1/credits")
 app.include_router(orders_router, prefix="/api/v1/orders")
+app.include_router(parse_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="")
 app.include_router(debug_auth_router, prefix="")
 
@@ -142,6 +144,15 @@ from pathlib import Path
 AUDIO_STATIC_DIR = Path(__file__).resolve().parent.parent / "static" / "audio"
 AUDIO_STATIC_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/static/audio", StaticFiles(directory=str(AUDIO_STATIC_DIR)), name="audio_static")
+
+# BGM and cover static directories
+BGM_STATIC_DIR = Path(__file__).resolve().parent.parent / "static" / "bgm"
+BGM_STATIC_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/static/bgm", StaticFiles(directory=str(BGM_STATIC_DIR)), name="bgm_static")
+
+COVER_STATIC_DIR = Path(__file__).resolve().parent.parent / "static" / "covers"
+COVER_STATIC_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/static/covers", StaticFiles(directory=str(COVER_STATIC_DIR)), name="cover_static")
 
 
 @app.on_event("startup")

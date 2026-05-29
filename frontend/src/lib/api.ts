@@ -604,7 +604,7 @@ export interface CreditTx { id: string; user_id: string; type: string; amount: n
 export interface AdminPodcast { id: string; title: string; mode: string; status: string; target_duration: number; created_at: string; }
 export interface AdminTask { id: string; project_id: string; user_id: string; type: string; status: string; total_segments: number; completed_segments: number; error_message: string; created_at: string; }
 export interface AdminVoice { id: string; provider: string; provider_voice_id: string; name: string; language: string; is_cloned: boolean; }
-export interface ProviderConfig { primary: string; fallback: string; minimax_api_key: string; mimo_api_key: string; edge_tts_enabled: boolean; }
+export interface ProviderConfig { primary: string; fallback: string; minimax_api_key: string; minimax_api_base: string; mimo_api_key: string; edge_tts_enabled: boolean; }
 export interface Plan { id: string; name: string; price: number; credits: number; }
 
 export async function listAdminUsers(q = "", status = "", skip = 0, limit = 20): Promise<{ total: number; items: AdminUser[] }> {

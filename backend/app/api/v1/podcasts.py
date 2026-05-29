@@ -323,25 +323,9 @@ def update_script(
 # ---------------------------------------------------------------------------
 from datetime import datetime, timezone
 from pathlib import Path
-import wave, os
 
 AUDIO_DIR = Path(__file__).resolve().parent.parent.parent.parent / "static" / "audio"
 AUDIO_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def _concatenate_wav_files(input_paths: list, output_path: str):
-    """Concatenate multiple WAV files into one."""
-    if not input_paths:
-        return
-    with wave.open(input_paths[0], 'rb') as first:
-        params = first.getparams()
-        with wave.open(output_path, 'wb') as out:
-            out.setparams(params)
-            out.writeframes(first.readframes(first.getnframes()))
-            for p in input_paths[1:]:
-                with wave.open(p, 'rb') as w:
-                    out.writeframes(w.readframes(w.getnframes()))
-
 
 from app.models.segment import PodcastSegment
 from app.models.audio_asset import AudioAsset
@@ -372,13 +356,15 @@ def rebuild_audio(
         raise HTTPException(status_code=400, detail="No completed segments with audio")
 
     wav_paths = []
+    seen_paths = set()
     total_duration_ms = 0
     for seg in segments:
         if seg.audio_asset and seg.audio_asset.url:
             fname = seg.audio_asset.url.split("/")[-1]
             fpath = AUDIO_DIR / fname
-            if fpath.exists():
+            if fpath.exists() and str(fpath) not in seen_paths:
                 wav_paths.append(str(fpath))
+                seen_paths.add(str(fpath))
                 total_duration_ms += seg.audio_asset.duration_ms or 0
 
     if not wav_paths:
@@ -386,7 +372,17 @@ def rebuild_audio(
 
     output_fname = f"full_{project_id}.wav"
     output_path = str(AUDIO_DIR / output_fname)
-    _concatenate_wav_files(wav_paths, output_path)
+
+    # Use FFmpeg post-processing pipeline (falls back to wave concat)
+    from app.services.audio.processor import post_process_audio
+    from app.services.bgm_generator import ensure_bgm_files
+    bgm_files = ensure_bgm_files()
+    post_process_audio(
+        wav_paths, output_path,
+        crossfade_ms=50, normalize=True,
+        bgm_intro=bgm_files.get("bgm01"),
+        bgm_outro=bgm_files.get("bgm02"),
+    )
 
     file_size = os.path.getsize(output_path)
     now = datetime.now(timezone.utc)

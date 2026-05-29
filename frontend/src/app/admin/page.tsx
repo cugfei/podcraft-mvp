@@ -755,6 +755,7 @@ function ProviderConfigModule({ showMsg }: { showMsg: (m: string, s?: "success" 
           </FormControl>
           <TextField label="MiMo API Key" fullWidth type="password" value={config.mimo_api_key} onChange={(e) => setConfig({ ...config, mimo_api_key: e.target.value })} placeholder="设置小米 MiMo API Key" />
           <TextField label="MiniMax API Key" fullWidth type="password" value={config.minimax_api_key} onChange={(e) => setConfig({ ...config, minimax_api_key: e.target.value })} />
+          <TextField label="MiniMax API Base" fullWidth value={config.minimax_api_base} onChange={(e) => setConfig({ ...config, minimax_api_base: e.target.value })} placeholder="https://api.minimaxi.com" />
           <FormControl fullWidth>
             <InputLabel>Edge-TTS 启用</InputLabel>
             <Select value={config.edge_tts_enabled ? "true" : "false"} label="Edge-TTS 启用" onChange={(e) => setConfig({ ...config, edge_tts_enabled: e.target.value === "true" })}>
